@@ -1,0 +1,11 @@
+[flake8]
+select = E, W, F, C
+# Parece ser que W503 va contra la última actualización de PEP8.
+# Ver:
+# * https://lintlyci.github.io/Flake8Rules/rules/W503.html
+# * https://www.python.org/dev/peps/pep-0008/#should-a-line-break-before-or-after-a-binary-operator
+ignore = W503, E203
+max_complexity = 20
+max_line_length = 99
+exclude = venv,env,.venv,.env
+format = %(path)s:%(row)d:%(col)d: %(code)s %(text)s (https://lintlyci.github.io/Flake8Rules/rules/%(code)s.html)
