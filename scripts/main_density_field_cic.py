@@ -34,8 +34,8 @@ def get_params(argv: list[str]) -> argparse.Namespace:
     logging.info("Running ArgumentParser")
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--path", type=str)
     parser.add_argument("--dm_particles_file", type=str)
+    parser.add_argument("--path", type=str, default="output/")
     parser.add_argument("--box_size", type=int, default=L_BOX)
     parser.add_argument("--mass_particle", type=float, default=MP)
     parser.add_argument("--n_grid", type=int, default=NGRID)
