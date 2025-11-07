@@ -1,0 +1,14 @@
+# Configuración de Black
+[tool.black]
+line-length = 99
+target-version = ["py311"]
+
+# Configuración de isort
+[tool.isort]
+profile = "black"
+line_length = 99
+skip_gitignore = true
+known_local_folder = [
+    "density_field_properties",
+    "tests",
+]

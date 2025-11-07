@@ -11,20 +11,21 @@ dependencies:
   - matplotlib>=3.5
 
   # Numba for high-performance computing (CPU only)
+  - pre-commit
   - numba
 
   - make
   - git
-  
+
   # Data handling and I/O
-  - h5py  
+  - h5py
 
   #- typer
   #- loguru
   #- tqdm
   - ruff
   - pytest
-  
+
   - pip
   - pip:
     #- python-dotenv

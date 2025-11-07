@@ -26,6 +26,34 @@ Alternatively, install it as a local editable package:
 ```bash
 pip install -e .
 ```
+---
+## Pre-commit installation
+
+To ensure consistent code style and quality, this repository uses [**pre-commit**](https://pre-commit.com/) hooks configured with:
+
+* **[Black](https://black.readthedocs.io/en/stable/)** — automatic code formatter
+* **[isort](https://pycqa.github.io/isort/)** — import sorting
+* **[flake8](https://flake8.pycqa.org/en/latest/)** — code linting
+
+Install `pre-commit`
+
+```bash
+pip install pre-commit
+```
+
+Set up hooks in your local repository
+
+```bash
+pre-commit install
+```
+
+Run checks manually (optional)
+
+```bash
+pre-commit run --all-files
+```
+
+The hooks will automatically run on every `git commit`, ensuring that code is formatted, imports are sorted, and style issues are caught early.
 
 ---
 
