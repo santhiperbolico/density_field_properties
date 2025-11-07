@@ -1,0 +1,31 @@
+name: hod_madrid_py
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.7
+
+  # Scientific computing stack
+  - numpy>=1.7
+  - scipy>=1.7
+  - matplotlib>=3.5
+
+  # Numba for high-performance computing (CPU only)
+  - numba
+
+  - make
+  - git
+  
+  # Data handling and I/O
+  - h5py  
+
+  #- typer
+  #- loguru
+  #- tqdm
+  - ruff
+  - pytest
+  
+  - pip
+  - pip:
+    #- python-dotenv
+    - mkdocs
