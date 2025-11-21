@@ -4,17 +4,12 @@ import os
 import sys
 import time
 
+from default_params import BATCH_SIZE, L_BOX, MP, NGRID
+
 from density_field_properties.density_field.cic_deposit import (
     density_field_cic_main,
     save_density_field_cic,
 )
-
-L_BOX = 1000  # Mpc/h
-NGRID = 512
-MP = 1.2e9
-BATCH_SIZE = 5726515
-
-MAX_ITERATIONS = 70
 
 
 def get_params(argv: list[str]) -> argparse.Namespace:
@@ -46,11 +41,13 @@ def get_params(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str]) -> None:
     params = get_params(argv)
-    dm_particles_file: str = os.path.join(params.path, params.dm_particles_file)
+
+    if not os.path.exists(params.path):
+        os.makedirs(params.path)
 
     start_time = time.time()
-    density, n_particles = density_field_cic_main(
-        dm_particles_file=dm_particles_file,
+    density, density_info = density_field_cic_main(
+        dm_particles_file=params.dm_particles_file,
         mass_particle=params.mass_particle,
         box_size=params.box_size,
         n_grid=params.n_grid,
@@ -58,9 +55,16 @@ def main(argv: list[str]) -> None:
     )
 
     end_time = time.time()
-    duration = (end_time - start_time) / 60  # minutes
+    density_info.add_process_duration(end_time - start_time)
+    duration = density_info.process_duration / 60  # minutes
     logging.info("- Saving density field")
-    save_density_field_cic(density, dm_particles_file, n_particles)
+    output_file = save_density_field_cic(
+        density=density,
+        path=params.path,
+        dm_particles_file=params.dm_particles_file,
+        density_info=density_info,
+    )
+    logging.info("- Density field saved in %s" % output_file)
     logging.info("- End Process: %f min." % duration)
 
 
