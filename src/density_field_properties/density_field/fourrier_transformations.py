@@ -22,8 +22,6 @@ def kgrid(n_grid: int, box_size: float) -> tuple[np.ndarray, np.ndarray, np.ndar
     kx3, ky3, kz3 : ndarray
         3D arrays with the Cartesian components of the wavevector for each Fourier mode.
     """
-    kx = 2 * np.pi * fftfreq(n_grid, d=box_size / n_grid)
-    ky = 2 * np.pi * fftfreq(n_grid, d=box_size / n_grid)
-    kz = 2 * np.pi * fftfreq(n_grid, d=box_size / n_grid)[: n_grid // 2 + 1]
-    kx3, ky3, kz3 = np.meshgrid(kx, ky, kz, indexing="ij")
+    kspace = 2 * np.pi * fftfreq(n_grid, d=box_size / n_grid)
+    kx3, ky3, kz3 = np.meshgrid(kspace, kspace, kspace[: n_grid // 2 + 1], indexing="ij")
     return kx3, ky3, kz3
