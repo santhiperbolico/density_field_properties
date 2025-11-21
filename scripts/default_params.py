@@ -1,0 +1,4 @@
+L_BOX = 1000  # Mpc/h
+NGRID = 512
+MP = 1.2e9
+BATCH_SIZE = 5726515

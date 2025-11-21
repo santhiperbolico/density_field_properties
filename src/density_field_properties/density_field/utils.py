@@ -1,4 +1,84 @@
+from typing import Optional, Self
+
 import numpy as np
+
+
+class DensityFieldInfo:
+    """
+    Represents metadata information for a density field.
+
+    This class is designed to encapsulate the critical parameters of a density
+    field, which are necessary for data analysis and simulations. It stores
+    information such as the physical dimensions of the field, the number of
+    grids in the field, the particle mass, and the total number of particles.
+
+    Attributes
+    ----------
+    box_size : float
+        The size of the simulation box or field in Mpc/h units.
+    n_grid : int
+        The number of grid cells in the density field.
+    n_particles : int
+        The total number of particles within the field.
+    mass_particle : float
+        The mass of a single particle in the simulation or field in M_sun units.
+    process_duration : Optional[float] = None
+        Time taken to process the density field in seconds. Defaults to None.
+    """
+
+    def __init__(
+        self,
+        box_size: float,
+        n_grid: int,
+        n_particles: int,
+        mass_particle: float,
+        process_duration: Optional[float] = None,
+    ):
+        self.box_size = box_size
+        if box_size % 1 == 0:
+            self.box_size = int(box_size)
+        self.n_grid = int(n_grid)
+        self.n_particles = int(n_particles)
+        self.mass_particle = mass_particle
+        self.process_duration = process_duration
+
+    def __str__(self):
+        attributes = (
+            f"box_size={self.box_size}, "
+            f"n_grid={self.n_grid}, "
+            f"n_particles={self.n_particles}, "
+            f"mass_particle={self.mass_particle}"
+        )
+        if self.process_duration is not None:
+            attributes += f", process_duration={self.process_duration}"
+        return f"DensityFieldInfo({attributes})"
+
+    def __repr__(self):
+        return self.__str__()
+
+    def add_process_duration(self, duration: float) -> None:
+        self.process_duration = duration
+        return None
+
+    def save_information(self, output_info_file: str) -> None:
+        row_information = "%f,%i,%i,%f," % (
+            self.box_size,
+            self.n_grid,
+            self.n_particles,
+            self.mass_particle,
+        )
+        if self.process_duration is not None:
+            row_information += "%f" % self.process_duration
+        row_information += "\n"
+        with open(output_info_file, "w") as f:
+            f.write("# box_size,n_grid,n_particles,mass_particle, process_duration\n")
+            f.write(row_information)
+        return None
+
+    @classmethod
+    def load_information(cls, density_info_file: str) -> Self:
+        density_info = np.loadtxt(density_info_file, delimiter=",")
+        return cls(*density_info)
 
 
 def gaussian_filter(k: np.ndarray, r_scale: float) -> np.ndarray:

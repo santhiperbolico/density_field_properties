@@ -1,8 +1,11 @@
 import gc
 import logging
+import os
 from typing import Optional
 
 import numpy as np
+
+from density_field_properties.density_field.utils import DensityFieldInfo
 
 
 def mass_field_cic(
@@ -75,7 +78,7 @@ def density_field_cic_main(
     box_size: float,
     n_grid: int,
     batch_size: Optional[int] = None,
-) -> tuple[np.ndarray, int]:
+) -> tuple[np.ndarray, DensityFieldInfo]:
     """
     Computes the density field using Cloud-In-Cell (CIC) interpolation and processes
     data in batches for memory efficiency. The procedure reads particle data from
@@ -129,10 +132,15 @@ def density_field_cic_main(
             gc.collect()
 
     density = mass_field / (dx**3)
-    return density, n_particles
+    density_info = DensityFieldInfo(
+        box_size=box_size, n_grid=n_grid, n_particles=n_particles, mass_particle=mass_particle
+    )
+    return density, density_info
 
 
-def save_density_field_cic(density: np.ndarray, dm_particles_file: str, n_particles: int) -> str:
+def save_density_field_cic(
+    density: np.ndarray, path: str, dm_particles_file: str, density_info: DensityFieldInfo
+) -> str:
     """
     Saves a density field array to a file in binary format using the specified
     filename and number of particles. The file name is formatted to include
@@ -142,28 +150,36 @@ def save_density_field_cic(density: np.ndarray, dm_particles_file: str, n_partic
     ----------
     density : numpy.ndarray
         A NumPy array representing the density field to be saved.
+    path: str
+        Path to the directory where the file will be saved.
     dm_particles_file : str
         The base name of the file that links to the density field.
-    n_particles : int
-        The number of particles to be included in the file naming structure.
+    density_info : DensityFieldInfo
+        Information about the density field.
 
     Returns
     -------
     output_file: str
         Outpu file name.
     """
-    n_grid = density.shape[0]
     dm_particles_file = dm_particles_file.split(".")[0]
-    output_file = "%s_density_np%i_ng%i.dat" % (
-        dm_particles_file.replace(".dat", ""),
-        n_particles,
-        n_grid,
+    output_data_file = "%s_density" % os.path.basename(dm_particles_file).replace(".dat", "")
+    output_data_file = os.path.join(path, output_data_file)
+    density.tofile(output_data_file)
+
+    output_info_file = "%s_density_info.txt" % os.path.basename(dm_particles_file).replace(
+        ".dat", ""
     )
-    density.tofile(output_file)
-    return output_file
+
+    output_info_file = os.path.join(path, output_info_file)
+    density_info.save_information(output_info_file)
+
+    return output_data_file
 
 
-def load_density_field_cic(density_field_cic_file: str) -> tuple[np.ndarray, int]:
+def load_density_field_cic(
+    density_field_cic_file: str, density_field_cic_info_file: Optional[str] = None
+) -> tuple[np.ndarray, DensityFieldInfo | None]:
     """
     Load a density field calculated using the Cloud-In-Cell (CIC) method from a provided file.
     The function reads the density field from a binary file and extracts the number of
@@ -176,19 +192,23 @@ def load_density_field_cic(density_field_cic_file: str) -> tuple[np.ndarray, int
     density_field_cic_file : str
         Path to the binary file containing the CIC density field data. The filename should
         include the number of particles as a suffix before the file extension.
+    density_field_cic_info_file: Optional[str] = None,
+        Path to the text file containing the density field information.
 
     Returns
     -------
-    tuple of (numpy.ndarray, int)
-        A tuple containing:
-        - A numpy array representing the density field read from the file.
-        - An integer indicating the number of particles extracted from the filename.
+    density: np.ndarray
+        A numpy array representing the density field read from the file.
+    density_info: Optional[DensityFieldInfo] = None
+        Information about the density field.
     """
     density = np.fromfile(density_field_cic_file)
-    density_field_cic_file = density_field_cic_file.split(".")[0]
-    n_particles = int(density_field_cic_file.split("_np")[-1].split("_")[0])
-    n_grid = int(density_field_cic_file.split("_ng")[-1].split("_")[0])
-    return density.reshape((n_grid, n_grid, n_grid)), n_particles
+    density_info = None
+    if density_field_cic_info_file is not None:
+        density_info = DensityFieldInfo.load_information(density_field_cic_info_file)
+        n_grid = density_info.n_grid
+        density = density.reshape((n_grid, n_grid, n_grid))
+    return density, density_info
 
 
 def get_delta_density(
