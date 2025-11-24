@@ -3,6 +3,41 @@ from typing import Optional, Self
 import numpy as np
 
 
+def get_grid_cell(data: np.ndarray, box_size: float | int, n_grid: int) -> np.ndarray:
+    """
+    Compute the grid cell indices for points in a dataset.
+
+    This function determines which grid cell each point in the provided dataset
+    belongs to, based on the specified box size and grid resolution. The result
+    is returned as an array of grid cell indices.
+
+    Parameters
+    ----------
+    data : numpy.ndarray
+        Array of shape `(N, M)` where `N` is the number of points and `M` is the
+        dimensionality of each point.
+    box_size : float or int
+        The size of the box within which the grid is defined.
+    n_grid : int
+        The resolution of the grid, representing the number of divisions along one
+        axis of the box.
+
+    Returns
+    -------
+    numpy.ndarray
+        An array of shape `(N, M)` that contains the grid cell indices for each
+        point along each dimension.
+    """
+    n_cols = 1
+    if data.shape[1] > 1:
+        n_cols = data.shape[1]
+    cells = np.zeros((data.shape[0], n_cols))
+    dx = box_size / n_grid
+    for col_i in range(n_cols):
+        cells[:, col_i] = np.floor(data[:, 0] / dx).astype(int) % n_grid
+    return cells.astype(int)
+
+
 class DensityFieldInfo:
     """
     Represents metadata information for a density field.

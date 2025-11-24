@@ -113,6 +113,28 @@ def tidal_tensor_component_calculation(
 
 
 class TidalTensor:
+    """
+    Represents a Tidal Tensor for analyzing gravitational potential structures in 3D space.
+
+    The TidalTensor class provides functionality for working with tidal tensors, which describe
+    the second derivatives of the gravitational potential in a defined space. The class allows
+    for constructing tidal tensors from file data, density contrast fields, and retrieving
+    specific tensor components for grid coordinates. The tensors are stored as a dictionary
+    of components, which may be read or computed as needed. This implementation is especially
+    valuable in cosmological simulations and modeling large-scale structures in astrophysical
+     studies.
+
+    Attributes
+    ----------
+    tidal_tensor : dict[tuple[int, int], str]
+        Dictionary mapping tensor components (specified as 2D tuples) to the file paths of
+        their associated datasets. Keys represent the component indices, and values are
+        the file paths storing the corresponding data.
+    gaussian_scale : Optional[float | int]
+        The Gaussian smoothing scale used during tidal tensor computation or representation.
+        If not specified, smoothing or scale adjustments are omitted.
+    """
+
     def __init__(
         self,
         t_xx: str,
@@ -226,7 +248,8 @@ class TidalTensor:
         tidal_files = {}
         output_path = os.path.join(path, f"{TIDAL_TENSOR_PATH}_none")
         if gaussian_scale is not None:
-            output_path = os.path.join(path, f"{TIDAL_TENSOR_PATH}_{gaussian_scale: .0f}")
+            output_path = f"{TIDAL_TENSOR_PATH}_{gaussian_scale}".replace(".", "*")
+            output_path = os.path.join(path, output_path)
         os.makedirs(output_path, exist_ok=True)
         for component in components_list:
             name_tidal_tensor = tidal_tensor_component_calculation(
@@ -271,10 +294,16 @@ class TidalTensor:
             The specific component value from the tidal tensor dataset
             corresponding to the provided cell coordinates and component tuple.
         """
+        if cell_x % 1 > 0:
+            raise ValueError("cell_x must be an integer")
+        if cell_y % 1 > 0:
+            raise ValueError("cell_y must be an integer")
+        if cell_z % 1 > 0:
+            raise ValueError("cell_z must be an integer")
 
         with h5py.File(self.tidal_tensor.get(component), "r") as f:
             dataset = f[NAME_HD5]
-            t_component_value = dataset[cell_x, cell_y, cell_z]
+            t_component_value = dataset[int(cell_x), int(cell_y), int(cell_z)]
         return t_component_value
 
     def get_tidal_tensor(
@@ -365,5 +394,315 @@ class TidalTensor:
             An array of eigenvalues corresponding to the tidal tensor for each input grid cell.
         """
         tidal_tensor = self.get_tidal_tensor(cell_x, cell_y, cell_z)
-        eigval, _ = np.linalg.eigh(tidal_tensor)
+        eigval = np.zeros((tidal_tensor.shape[0], 3))
+        for i in range(tidal_tensor.shape[0]):
+            eigval = np.linalg.eigvalsh(tidal_tensor[i])
         return eigval
+
+
+class TidalTensorArray:
+    def __init__(
+        self, tidal_tensor_list: list[TidalTensor], gaussian_scale_list: list[float | int]
+    ):
+        self.tidal_tensors = dict(zip(gaussian_scale_list, tidal_tensor_list))
+
+    @property
+    def gaussian_scale_list(self) -> list[float | int]:
+        """
+        Gets the list of Gaussian scale values sorted in ascending order.
+
+        The Gaussian scales are obtained from the keys of the `tidal_tensors`
+        attribute, which represent the available scales defined in the object.
+        These values are then sorted before being returned.
+
+        Returns
+        -------
+        list of float or int
+            A sorted list of Gaussian scale values.
+        """
+        gs_list = list(self.tidal_tensors.keys())
+        gs_list.sort()
+        return gs_list
+
+    def get_gaussian_scale_bin(
+        self, gaussian_scale: np.ndarray | float | int
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Get the bounding bin of a given Gaussian scale from a predefined Gaussian scale list.
+
+        The function searches for two consecutive Gaussian scales in the list such that the given
+        scale falls between them. If the given scale is not within the range of the Gaussian scale
+        list, an error is raised.
+
+        Parameters
+        ----------
+        gaussian_scale : np.ndarray | float | int
+            The Gaussian scale to locate in the list. Must be within the bounds of the predefined
+            list of Gaussian scales.
+
+        Returns
+        -------
+        tuple of (np.ndarray, np.ndarray)
+            A tuple containing two consecutive Gaussian scales that bound the input scale.
+
+        Raises
+        ------
+        ValueError
+            If the Gaussian scale is not found within the ranges of the predefined list.
+        """
+        if isinstance(gaussian_scale, (int, float)):
+            gaussian_scale = np.array([gaussian_scale])
+
+        gs_0 = np.zeros(gaussian_scale.shape)
+        gs_1 = np.zeros(gaussian_scale.shape)
+        for i in range(gaussian_scale.shape[0]):
+            gs_scales = np.array(self.gaussian_scale_list)
+            diff_gs = gs_scales - gaussian_scale[i]
+            if (diff_gs < 0).all() or (diff_gs > 0).all():
+                raise ValueError(f"Gaussian scale {gaussian_scale[i]} not found in the list")
+            gs_i = int(np.where((diff_gs == max(diff_gs[diff_gs <= 0])))[0])
+            gs_0[i] = self.gaussian_scale_list[gs_i]
+            gs_1[i] = self.gaussian_scale_list[gs_i + 1]
+
+        return gs_0, gs_1
+
+    @classmethod
+    def from_folder(cls, path: str) -> Self:
+        """
+        Creates an instance of the class from the contents of a folder.
+
+        This class method examines the contents of the specified folder to identify
+        subfolders containing tidal tensor data and parses their associated Gaussian
+        scale values. It then constructs and initializes the class using a list of
+        `TidalTensor` instances and their corresponding Gaussian scale values, derived
+        from the detected subfolder structure.
+
+        Parameters
+        ----------
+        path : str
+            The file system path to the folder containing the tidal tensor data
+            subdirectories.
+
+        Returns
+        -------
+        TidalTensorArray
+            An instance of the class initialized with tidal tensor data derived
+            from the specified folder.
+        """
+        tidal_tensor_list = []
+        gaussian_scale_list = []
+        for file in os.listdir(path):
+            path_r = os.path.join(path, file)
+            if file.startswith(TIDAL_TENSOR_PATH) and os.path.isdir(path_r):
+                gaussian_scale = file.split("_")[-1]
+                if gaussian_scale == "none":
+                    gaussian_scale = None
+                else:
+                    gaussian_scale = float(gaussian_scale.replace("*", "."))
+                tidal_tensor_list.append(TidalTensor.from_folder(path_r, gaussian_scale))
+                gaussian_scale_list.append(gaussian_scale)
+        return cls(tidal_tensor_list, gaussian_scale_list)
+
+    @classmethod
+    def from_delta(
+        cls, delta: np.ndarray, box_size: float, path: str, gaussian_scale_list: list[float | int]
+    ) -> Self:
+        """
+        Create an instance of the class from a given set of density field data
+        and scales.
+
+        This method processes a density field to compute tidal tensors for
+        provided Gaussian smoothing scales and stores them at a specified path.
+
+        Parameters
+        ----------
+        delta : numpy.ndarray
+            The density field data to be processed.
+        box_size : float
+            The size of the simulation box in physical units.
+        path : str
+            The directory path where the computed tidal tensors will be saved.
+        gaussian_scale_list : list of float or int
+            List of Gaussian smoothing scales for tensor computation.
+
+        Returns
+        -------
+        TidalTensorArray
+            An instance of the class initialized with computed tidal tensors and
+            the provided Gaussian smoothing scales.
+        """
+        output_path = os.path.join(path, f"{TIDAL_TENSOR_PATH}")
+        os.makedirs(output_path, exist_ok=True)
+        tidal_tensor_list = []
+        for gaussian_scale in gaussian_scale_list:
+            tidal_tensor = TidalTensor.from_delta(delta, box_size, output_path, gaussian_scale)
+            tidal_tensor_list.append(tidal_tensor)
+        return cls(tidal_tensor_list, gaussian_scale_list)
+
+    def _get_tidal_tensor(
+        self, cell_x: int, cell_y: int, cell_z: int, gaussian_scale: float | int
+    ) -> np.ndarray:
+        """
+        Computes and retrieves the tidal tensor for a given set of cell coordinates and
+        gaussian scale. The tidal tensor provides information related to the second
+        derivatives of the gravitational potential in a simulated cosmological field.
+
+        Parameters
+        ----------
+        cell_x : int
+            The x-coordinate(s) of the cell(s) for which the tidal tensor is computed.
+        cell_y : int
+            The y-coordinate(s) of the cell(s) for which the tidal tensor is computed.
+        cell_z : int
+            The z-coordinate(s) of the cell(s) for which the tidal tensor is computed.
+        gaussian_scale : float | int
+            The scale used for Gaussian filtering of the gravitational field during tidal
+            tensor computation. This scale determines the smoothing applied.
+
+        Returns
+        -------
+        np.ndarray
+            The tidal tensor at the specified coordinates and gaussian scale.
+        """
+        tt_object = self.tidal_tensors[gaussian_scale]
+        return tt_object.get_tidal_tensor(int(cell_x), int(cell_y), int(cell_z))
+
+    def get_tidal_tensor(
+        self,
+        cell_x: np.ndarray | int,
+        cell_y: np.ndarray | int,
+        cell_z: np.ndarray | int,
+        gaussian_scale: np.ndarray | float | int,
+    ) -> np.ndarray:
+        """
+        Calculates the tidal tensor for given spatial coordinates and Gaussian scale.
+
+        This function computes the tidal tensor by interpolating values between two different
+        Gaussian scale bins derived from the given scale value. It utilizes two intermediate
+        internal computations to fetch tidal tensors corresponding to neighboring Gaussian
+        scale bins, and then applies a linear interpolation to determine the resultant
+        tidal tensor.
+
+        Parameters
+        ----------
+        cell_x : np.ndarray | int
+            The x-coordinate(s) (in grid space) where the tidal tensor is evaluated.
+        cell_y : np.ndarray | int
+            The y-coordinate(s) (in grid space) where the tidal tensor is evaluated.
+        cell_z : np.ndarray | int
+            The z-coordinate(s) (in grid space) where the tidal tensor is evaluated.
+        gaussian_scale : np.ndarray | float | int
+            The Gaussian scale value to determine the scale-specific components
+            of the tidal tensor.
+
+        Returns
+        -------
+        np.ndarray
+            A multidimensional array representing the tidal tensor at the specified coordinates
+            and scale.
+        """
+
+        tidal_tensor = np.zeros([cell_x.shape[0], 3, 3], dtype="f4")
+        for i_pos, gs in enumerate(gaussian_scale):
+            gs_limits = self.get_gaussian_scale_bin(gs)
+            gs_0, gs_1 = gs_limits[0][0], gs_limits[1][0]
+            tidal_tensor_i0 = self._get_tidal_tensor(
+                cell_x=cell_x[i_pos],
+                cell_y=cell_y[i_pos],
+                cell_z=cell_z[i_pos],
+                gaussian_scale=gs_0,
+            )
+            tidal_tensor_i1 = self._get_tidal_tensor(
+                cell_x=cell_x[i_pos],
+                cell_y=cell_y[i_pos],
+                cell_z=cell_z[i_pos],
+                gaussian_scale=gs_1,
+            )
+            tidal_tensor[i_pos] = (tidal_tensor_i1 - tidal_tensor_i0) * (gs_1 - gs) / (
+                gs_0 - gs_1
+            ) + tidal_tensor_i1
+        return tidal_tensor
+
+    def eigenvalues(
+        self,
+        cell_x: np.ndarray | int,
+        cell_y: np.ndarray | int,
+        cell_z: np.ndarray | int,
+        gaussian_scale: np.ndarray | float | int,
+    ) -> np.ndarray:
+        """
+        Compute the eigenvalues of the tidal tensor.
+
+        This method calculates the eigenvalues of the tidal tensor for a specified
+        cell given its coordinates and a Gaussian smoothing scale. The tidal tensor
+        is obtained internally, and its eigenvalues are derived using a numerical
+        calculation.
+
+        Parameters
+        ----------
+        cell_x : np.ndarray or int
+            The x-coordinate of the cell where the tidal tensor is computed.
+        cell_y : np.ndarray or int
+            The y-coordinate of the cell where the tidal tensor is computed.
+        cell_z : np.ndarray or int
+            The z-coordinate of the cell where the tidal tensor is computed.
+        gaussian_scale : np.ndarray | float | int
+            The Gaussian smoothing scale to filter the data before computing
+            the tidal tensor.
+
+        Returns
+        -------
+        np.ndarray
+            A 1D array containing the eigenvalues of the derived tidal tensor.
+        """
+
+        tidal_tensor = self.get_tidal_tensor(cell_x, cell_y, cell_z, gaussian_scale)
+        eigval = np.zeros((tidal_tensor.shape[0], 3))
+        for i in range(tidal_tensor.shape[0]):
+            eigval[i, :] = np.linalg.eigvalsh(tidal_tensor[i])
+        return eigval
+
+    def get_tidal_anisotropy_and_overdensity(
+        self,
+        cell_x: np.ndarray | int,
+        cell_y: np.ndarray | int,
+        cell_z: np.ndarray | int,
+        gaussian_scale: np.ndarray | float | int,
+    ) -> tuple[float, float]:
+        """
+        Calculates the tidal anisotropy and overdensity for a specified cell and gaussian scale.
+
+        The method computes the tidal anisotropy and overdensity using eigenvalues of the
+        tidal tensor, obtained based on the given cell coordinates and gaussian scale parameter.
+        The tidal anisotropy is determined from the eigenvalues to measure the local tidal
+        distortion, while the overdensity is calculated as their sum. More information on the
+            The multi-dimensional halo assembly bias can be preserved when enhancing
+            halo properties with HALOSCOPE, Ramakrishnan et al., 2024
+
+        Parameters
+        ----------
+        cell_x : np.ndarray or int
+            The x-coordinate(s) of the cell(s) in the grid.
+        cell_y : np.ndarray or int
+            The y-coordinate(s) of the cell(s) in the grid.
+        cell_z : np.ndarray or int
+            The z-coordinate(s) of the cell(s) in the grid.
+        gaussian_scale : np.ndarray | float | int
+            Smoothing scale applied for evaluating the tidal tensor.
+
+        Returns
+        -------
+        tidal_anisotropy: float
+            Tidal anisotropy, quantified using eigenvalue differences.
+        delta_s: float
+            Overdensity, calculated as the sum of eigenvalues.
+        """
+        eigval = self.eigenvalues(cell_x, cell_y, cell_z, gaussian_scale)
+        delta_s = eigval.sum(axis=1)
+        q2 = 0.5 * (
+            (eigval[:, 0] - eigval[:, 1]) ** 2
+            + (eigval[:, 1] - eigval[:, 2]) ** 2
+            + (eigval[:, 2] - eigval[:, 0]) ** 2
+        )
+        tidal_anisotropy = np.sqrt(q2) / (1.0 + delta_s + 1e-15)
+        return tidal_anisotropy, delta_s
