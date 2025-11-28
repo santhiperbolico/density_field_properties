@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Optional, Self
+from typing import Callable, Optional, Self
 
 import h5py
 import numpy as np
@@ -13,31 +13,14 @@ TIDAL_TENSOR_PATH = "tidal_tensor"
 GAUSSIAN_SCALE_DEFAULT = "none"
 
 
-def sinc(x: np.ndarray) -> np.ndarray:
-    """
-    Compute the normalized sinc function element-wise for the input array.
+def interpolate_array_generator(
+    array_0: np.ndarray, array_1: np.ndarray, gaussian_scale_0: float, gaussian_scale_1: float
+) -> Callable[[np.ndarray | int | float], np.ndarray]:
+    def init(gaussian_scale: int | float | np.ndarray) -> np.ndarray:
+        slope = (array_1 - array_0) / (gaussian_scale_0 - gaussian_scale_1)
+        return (gaussian_scale_1 - gaussian_scale) * slope + array_1
 
-    The normalized sinc function is defined as sinc(x) = sin(x) / x for x != 0,
-    and sinc(0) = 1. This function computes the values for each element in a
-    given input array.
-
-    Parameters
-    ----------
-    x : np.ndarray
-        Input array containing numerical values. Each element of the array is
-        processed to compute its normalized sinc function value.
-
-    Returns
-    -------
-    np.ndarray
-        An array of the same shape as the input array, where each element contains
-        the computed value of the normalized sinc function for the corresponding
-        input value.
-    """
-    out = np.ones_like(x)
-    m = x != 0
-    out[m] = np.sin(x[m]) / x[m]
-    return out
+    return init
 
 
 def tidal_tensor_component_calculation(
@@ -396,7 +379,7 @@ class TidalTensor:
         tidal_tensor = self.get_tidal_tensor(cell_x, cell_y, cell_z)
         eigval = np.zeros((tidal_tensor.shape[0], 3))
         for i in range(tidal_tensor.shape[0]):
-            eigval = np.linalg.eigvalsh(tidal_tensor[i])
+            eigval[i] = np.linalg.eigvalsh(tidal_tensor[i])
         return eigval
 
 
@@ -601,6 +584,29 @@ class TidalTensorArray:
             A multidimensional array representing the tidal tensor at the specified coordinates
             and scale.
         """
+        if isinstance(gaussian_scale, (int, float)):
+            gaussian_scale = np.array([gaussian_scale])
+
+        if isinstance(cell_x, (int, float)):
+            cell_x = np.array([cell_x])
+
+        if isinstance(cell_y, (int, float)):
+            cell_y = np.array([cell_y])
+
+        if isinstance(cell_z, (int, float)):
+            cell_z = np.array([cell_z])
+
+        if cell_x.shape != cell_y.shape:
+            raise ValueError("cell_x and cell_y must have the same shape")
+
+        if cell_x.shape != cell_z.shape:
+            raise ValueError("cell_x and cell_z must have the same shape")
+
+        if cell_y.shape != cell_z.shape:
+            raise ValueError("cell_y and cell_z must have the same shape")
+
+        if gaussian_scale.shape != cell_x.shape:
+            raise ValueError("gaussian_scale and cell_x must have the same shape")
 
         tidal_tensor = np.zeros([cell_x.shape[0], 3, 3], dtype="f4")
         for i_pos, gs in enumerate(gaussian_scale):
@@ -618,10 +624,41 @@ class TidalTensorArray:
                 cell_z=cell_z[i_pos],
                 gaussian_scale=gs_1,
             )
-            tidal_tensor[i_pos] = (tidal_tensor_i1 - tidal_tensor_i0) * (gs_1 - gs) / (
-                gs_0 - gs_1
-            ) + tidal_tensor_i1
+            interpolator = interpolate_array_generator(
+                array_0=tidal_tensor_i0,
+                array_1=tidal_tensor_i1,
+                gaussian_scale_0=gs_0,
+                gaussian_scale_1=gs_1,
+            )
+            tidal_tensor[i_pos] = interpolator(gs)
         return tidal_tensor
+
+    def _get_eigenvalue(
+        self, cell_x: int, cell_y: int, cell_z: int, gaussian_scale: float | int
+    ) -> np.ndarray:
+        """
+        Computes and retrieves the eigenvalue of the tidal tensor at the specified for the given
+        spatial coordinates and Gaussian scale.
+
+        Parameters
+        ----------
+        cell_x : int
+            The x-coordinate(s) of the cell(s) for which the tidal tensor is computed.
+        cell_y : int
+            The y-coordinate(s) of the cell(s) for which the tidal tensor is computed.
+        cell_z : int
+            The z-coordinate(s) of the cell(s) for which the tidal tensor is computed.
+        gaussian_scale : float | int
+            The scale used for Gaussian filtering of the gravitational field during tidal
+            tensor computation. This scale determines the smoothing applied.
+
+        Returns
+        -------
+        np.ndarray
+            The eigenvalue of the tidal tensor at the specified coordinates and scale.
+        """
+        tt_object = self.tidal_tensors[gaussian_scale]
+        return tt_object.eigenvalues(int(cell_x), int(cell_y), int(cell_z))
 
     def eigenvalues(
         self,
@@ -655,11 +692,55 @@ class TidalTensorArray:
         np.ndarray
             A 1D array containing the eigenvalues of the derived tidal tensor.
         """
+        if isinstance(gaussian_scale, (int, float)):
+            gaussian_scale = np.array([gaussian_scale])
 
-        tidal_tensor = self.get_tidal_tensor(cell_x, cell_y, cell_z, gaussian_scale)
-        eigval = np.zeros((tidal_tensor.shape[0], 3))
-        for i in range(tidal_tensor.shape[0]):
-            eigval[i, :] = np.linalg.eigvalsh(tidal_tensor[i])
+        if isinstance(cell_x, (int, float)):
+            cell_x = np.array([cell_x])
+
+        if isinstance(cell_y, (int, float)):
+            cell_y = np.array([cell_y])
+
+        if isinstance(cell_z, (int, float)):
+            cell_z = np.array([cell_z])
+
+        if cell_x.shape != cell_y.shape:
+            raise ValueError("cell_x and cell_y must have the same shape")
+
+        if cell_x.shape != cell_z.shape:
+            raise ValueError("cell_x and cell_z must have the same shape")
+
+        if cell_y.shape != cell_z.shape:
+            raise ValueError("cell_y and cell_z must have the same shape")
+
+        if gaussian_scale.shape != cell_x.shape:
+            raise ValueError("gaussian_scale and cell_x must have the same shape")
+
+        n_rows = cell_x.shape[0]
+        eigval = np.zeros((n_rows, 3))
+        for i_pos, gs in enumerate(gaussian_scale):
+            gs_limits = self.get_gaussian_scale_bin(gs)
+            gs_0, gs_1 = gs_limits[0][0], gs_limits[1][0]
+            eigenvalue_i0 = self._get_eigenvalue(
+                cell_x=cell_x[i_pos],
+                cell_y=cell_y[i_pos],
+                cell_z=cell_z[i_pos],
+                gaussian_scale=gs_0,
+            )
+            eigenvalue_i1 = self._get_eigenvalue(
+                cell_x=cell_x[i_pos],
+                cell_y=cell_y[i_pos],
+                cell_z=cell_z[i_pos],
+                gaussian_scale=gs_1,
+            )
+            interpolator = interpolate_array_generator(
+                array_0=eigenvalue_i0,
+                array_1=eigenvalue_i1,
+                gaussian_scale_0=gs_0,
+                gaussian_scale_1=gs_1,
+            )
+            eigval[i_pos] = interpolator(gs)
+
         return eigval
 
     def get_tidal_anisotropy_and_overdensity(
