@@ -12,7 +12,7 @@ class Cosmology:
 
     def convert_m200b_to_r200b(
         self,
-        m200b: np.ndarray,
+        m200b: np.ndarray | float,
         z: float = 0.0,
     ) -> np.ndarray:
         """
@@ -22,7 +22,7 @@ class Cosmology:
 
         Parameters
         ----------
-        m200b : np.ndarray
+        m200b : np.ndarray | float
             Mass defined using 200 times the critical density of the universe, in units
             Msun h^-1. Expected as an array for input flexibility.
         z: float, optional
