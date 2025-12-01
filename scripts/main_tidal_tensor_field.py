@@ -12,6 +12,7 @@ from density_field_properties.density_field.cic_deposit import (
     load_density_field_cic,
 )
 from density_field_properties.density_field.utils import DensityFieldInfo
+from density_field_properties.halo_catalog.utils import get_halo_catalog_reader
 from density_field_properties.halo_environment_descriptors.tidal_anisotropy import (
     tidal_anisotropy_and_overdensity_from_halo_calaog,
 )
@@ -44,14 +45,13 @@ def get_params(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--halo_file", type=str)
     parser.add_argument("--max_halos", type=int, default=None)
     parser.add_argument("--read_from_path", action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument("--halo_catalog_name", type=str, default="rockstar")
     parser.add_argument("--batch_size", type=int, default=None)
     parser.add_argument("--density_info", type=str, default=None)
     parser.add_argument("--path", type=str, default="output/")
     parser.add_argument("--r_bins", type=int, default=RBINS)
     parser.add_argument("--r_min", type=float, default=RMIN)
     parser.add_argument("--r_max", type=float, default=RMAX)
-    parser.add_argument("--rho_c_h2_msun_mpc3", type=float, default=RMIN)
-    parser.add_argument("--omega_matter", type=float, default=RMAX)
     # Only used if density_info is not provided
     parser.add_argument("--box_size", type=int, default=L_BOX)
     parser.add_argument("--n_particles", type=int, default=None)
@@ -95,7 +95,6 @@ def main(argv: list[str]) -> None:
 
         del delta_density
         del gaussian_scale_array
-        del tidal_tensor_array
 
         end_time = time.time()
         logging.info(
@@ -103,21 +102,22 @@ def main(argv: list[str]) -> None:
         )
 
     start_time = time.time()
-    _ = tidal_anisotropy_and_overdensity_from_halo_calaog(
+    halo_catalog_reader = get_halo_catalog_reader(params.halo_catalog_name)
+    output_path = tidal_anisotropy_and_overdensity_from_halo_calaog(
         path=params.path,
-        rockstar_halo_catalog=params.halo_file,
+        halo_catalog=halo_catalog_reader,
+        halo_catalog_path=params.halo_file,
         n_grid=density_info.n_grid,
         n_lines=params.max_halos,
         box_size=density_info.box_size,
-        xyz_position=[1, 2, 3],
-        r_position=4,
         batch_size=params.batch_size,
     )
     end_time = time.time()
     logging.info(
         "- Environment descriptors calculation time: %f minutes" % ((end_time - start_time) / 60)
     )
-    logging.info("")
+    logging.info("- Environment descriptors saved in %s" % output_path)
+    logging.info("- End Process")
 
 
 if __name__ == "__main__":

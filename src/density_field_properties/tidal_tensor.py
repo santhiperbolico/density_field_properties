@@ -31,7 +31,7 @@ def tidal_tensor_component_calculation(
     gaussian_scale: Optional[float | int] = None,
 ) -> str:
     """
-    Calculates a specific component of the tidal tensor from input density field data
+    Calculates a specific component of the tidal tensor from input density field halo_catalog
     and saves the resulting tensor component to an HDF5 file. This function computes
     the tidal tensor component by transforming the density field into Fourier space,
     applying relevant operations, and then transforming back to real space.
@@ -39,7 +39,7 @@ def tidal_tensor_component_calculation(
     Parameters
     ----------
     delta : np.ndarray
-        3D density field data array represented as a numpy array.
+        3D density field halo_catalog array represented as a numpy array.
     box_size : float
         The size of the box containing the 3D density field in physical space.
     path : str
@@ -101,7 +101,7 @@ class TidalTensor:
 
     The TidalTensor class provides functionality for working with tidal tensors, which describe
     the second derivatives of the gravitational potential in a defined space. The class allows
-    for constructing tidal tensors from file data, density contrast fields, and retrieving
+    for constructing tidal tensors from file halo_catalog, density contrast fields, and retrieving
     specific tensor components for grid coordinates. The tensors are stored as a dictionary
     of components, which may be read or computed as needed. This implementation is especially
     valuable in cosmological simulations and modeling large-scale structures in astrophysical
@@ -112,7 +112,7 @@ class TidalTensor:
     tidal_tensor : dict[tuple[int, int], str]
         Dictionary mapping tensor components (specified as 2D tuples) to the file paths of
         their associated datasets. Keys represent the component indices, and values are
-        the file paths storing the corresponding data.
+        the file paths storing the corresponding halo_catalog.
     gaussian_scale : Optional[float | int]
         The Gaussian smoothing scale used during tidal tensor computation or representation.
         If not specified, smoothing or scale adjustments are omitted.
@@ -296,7 +296,7 @@ class TidalTensor:
         Computes the tidal tensor for given grid cell indices.
 
         This function calculates a 3x3 tidal tensor for each specified grid point,
-        where the tidal tensor elements are determined by precomputed data. The
+        where the tidal tensor elements are determined by precomputed halo_catalog. The
         inputs must be NumPy arrays of the same shape, representing the indices of
         the grid along the x, y, and z dimensions for which the tidal tensor is to
         be computed.
@@ -455,7 +455,7 @@ class TidalTensorArray:
         Creates an instance of the class from the contents of a folder.
 
         This class method examines the contents of the specified folder to identify
-        subfolders containing tidal tensor data and parses their associated Gaussian
+        subfolders containing tidal tensor halo_catalog and parses their associated Gaussian
         scale values. It then constructs and initializes the class using a list of
         `TidalTensor` instances and their corresponding Gaussian scale values, derived
         from the detected subfolder structure.
@@ -463,13 +463,13 @@ class TidalTensorArray:
         Parameters
         ----------
         path : str
-            The file system path to the folder containing the tidal tensor data
+            The file system path to the folder containing the tidal tensor halo_catalog
             subdirectories.
 
         Returns
         -------
         TidalTensorArray
-            An instance of the class initialized with tidal tensor data derived
+            An instance of the class initialized with tidal tensor halo_catalog derived
             from the specified folder.
         """
         tidal_tensor_list = []
@@ -491,7 +491,7 @@ class TidalTensorArray:
         cls, delta: np.ndarray, box_size: float, path: str, gaussian_scale_list: list[float | int]
     ) -> Self:
         """
-        Create an instance of the class from a given set of density field data
+        Create an instance of the class from a given set of density field halo_catalog
         and scales.
 
         This method processes a density field to compute tidal tensors for
@@ -500,7 +500,7 @@ class TidalTensorArray:
         Parameters
         ----------
         delta : numpy.ndarray
-            The density field data to be processed.
+            The density field halo_catalog to be processed.
         box_size : float
             The size of the simulation box in physical units.
         path : str
@@ -684,7 +684,7 @@ class TidalTensorArray:
         cell_z : np.ndarray or int
             The z-coordinate of the cell where the tidal tensor is computed.
         gaussian_scale : np.ndarray | float | int
-            The Gaussian smoothing scale to filter the data before computing
+            The Gaussian smoothing scale to filter the halo_catalog before computing
             the tidal tensor.
 
         Returns
@@ -749,7 +749,7 @@ class TidalTensorArray:
         cell_y: np.ndarray | int,
         cell_z: np.ndarray | int,
         gaussian_scale: np.ndarray | float | int,
-    ) -> tuple[float, float]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Calculates the tidal anisotropy and overdensity for a specified cell and gaussian scale.
 
@@ -773,9 +773,9 @@ class TidalTensorArray:
 
         Returns
         -------
-        tidal_anisotropy: float
+        tidal_anisotropy: np.ndarray
             Tidal anisotropy, quantified using eigenvalue differences.
-        delta_s: float
+        delta_s: np.ndarray
             Overdensity, calculated as the sum of eigenvalues.
         """
         eigval = self.eigenvalues(cell_x, cell_y, cell_z, gaussian_scale)
