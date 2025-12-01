@@ -43,7 +43,7 @@ class DensityFieldInfo:
     Represents metadata information for a density field.
 
     This class is designed to encapsulate the critical parameters of a density
-    field, which are necessary for data analysis and simulations. It stores
+    field, which are necessary for halo_catalog analysis and simulations. It stores
     information such as the physical dimensions of the field, the number of
     grids in the field, the particle mass, and the total number of particles.
 
@@ -96,17 +96,19 @@ class DensityFieldInfo:
         return None
 
     def save_information(self, output_info_file: str) -> None:
-        row_information = "%f,%i,%i,%f," % (
+        row_information = "%f,%i,%i,%f" % (
             self.box_size,
             self.n_grid,
             self.n_particles,
             self.mass_particle,
         )
+        header = "#box_size,n_grid,n_particles,mass_particle\n"
         if self.process_duration is not None:
-            row_information += "%f" % self.process_duration
+            header = "#box_size,n_grid,n_particles,mass_particle, process_duration\n"
+            row_information += ",%f" % self.process_duration
         row_information += "\n"
         with open(output_info_file, "w") as f:
-            f.write("# box_size,n_grid,n_particles,mass_particle, process_duration\n")
+            f.write(header)
             f.write(row_information)
         return None
 
