@@ -81,14 +81,14 @@ def density_field_cic_main(
 ) -> tuple[np.ndarray, DensityFieldInfo]:
     """
     Computes the density field using Cloud-In-Cell (CIC) interpolation and processes
-    data in batches for memory efficiency. The procedure reads particle data from
+    halo_catalog in batches for memory efficiency. The procedure reads particle halo_catalog from
     a file, processes it via the CIC method, and returns the resulting density
     field and total number of particles used.
 
     Parameters
     ----------
     dm_particles_file : str
-        Path to the file containing particle data.
+        Path to the file containing particle halo_catalog.
     mass_particle : float
         Mass of a single particle.
     box_size : float
@@ -96,7 +96,7 @@ def density_field_cic_main(
     n_grid : int
         Number of grid cells along one dimension.
     batch_size : Optional[int] = None
-        Number of particle data rows to process in a single batch. If None,
+        Number of particle halo_catalog rows to process in a single batch. If None,
         the entire file is processed in one go.
 
     Returns
@@ -190,7 +190,7 @@ def load_density_field_cic(
     Parameters
     ----------
     density_field_cic_file : str
-        Path to the binary file containing the CIC density field data. The filename should
+        Path to the binary file containing the CIC density field halo_catalog. The filename should
         include the number of particles as a suffix before the file extension.
     density_field_cic_info_file: Optional[str] = None,
         Path to the text file containing the density field information.
