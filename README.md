@@ -76,3 +76,29 @@ This codebase is designed for studies involving:
 * **Tidal tensor** and **anisotropy** in large-scale structure ([Haloscope project](https://arxiv.org/pdf/2410.07361)).
 * Applications to **UNIT** ([UNIT simulations](https://ui.adsabs.harvard.edu/abs/2024A%26A...689A..69G/abstract)), **FastPM** ([FastPM GitHub](https://github.com/fastpm/fastpm)), and **CAMELS** ([CAMELS project](https://camels.readthedocs.io/en/latest/)).
 * Integration within cosmological survey frameworks such as **Euclid** ([ESA Euclid mission](https://www.euclid-ec.org)) and **DESI** ([DESI collaboration](https://www.desi.lbl.gov/)).
+
+---
+
+## FastPM halo catalogs (Rockstar `.list`)
+
+Rockstar text catalogs produced after FastPM runs (for example `out_0.list` under
+`rockstar_out_pm` or `rockstar_out_nbody`) are read with the same
+`RockstarCatalogReader` as standalone Rockstar outputs. Do not use
+`FastPMCatalogReader` for those `.list` files; that reader is only for native
+halos stored in FastPM BigFile snapshots.
+
+**Design:** reuse `RockstarCatalogReader` only—no duplicate parser in
+`fastpm.py` and no separate `fastpm_rockstar` catalog alias unless a future
+requirement justifies it.
+
+**CLI example:**
+
+```bash
+python scripts/your_pipeline.py \
+  --halo_catalog_name rockstar \
+  --halo_file /path/to/fastpm_tfm/rockstar_out_pm/out_0.list
+```
+
+Typical folder layout on shared storage is documented in
+[`config/fastpm_folders.md`](config/fastpm_folders.md) (`rockstar_out_pm` vs
+`rockstar_out_nbody`).
