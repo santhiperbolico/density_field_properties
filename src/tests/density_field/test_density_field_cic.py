@@ -1,4 +1,5 @@
 from tempfile import TemporaryDirectory
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -93,3 +94,58 @@ def test_save_load_densiti_field(expected_mass_field):
         density_field, density_info = load_density_field_cic(output_file, output_info_file)
     assert np.allclose(density_info.n_particles, 6)
     assert np.allclose(density_field, expected_mass_field)
+
+
+@pytest.fixture
+def mock_bigfile_dm_positions(dm_particles):
+    bfile = MagicMock()
+    header = MagicMock()
+    header.attrs = {}
+    bfile.__getitem__.side_effect = lambda key: header if key == "Header" else MagicMock()
+    positions = dm_particles.astype(np.float64)
+
+    def open_side_effect(name):
+        if name.endswith("/Position"):
+            return positions
+        raise KeyError(f"Unexpected block name: {name}")
+
+    bfile.open.side_effect = open_side_effect
+    return bfile
+
+
+def test_density_field_cic_main_fastpm_bigfile(
+    dm_particles, expected_mass_field, mock_bigfile_dm_positions
+):
+    block_path = "/data/snap_1.0000/1"
+    with patch("os.path.normpath", side_effect=lambda p: p), patch(
+        "os.path.exists", return_value=True
+    ), patch("os.path.isfile", return_value=False), patch(
+        "os.path.isdir", return_value=True
+    ), patch(
+        "density_field_properties.density_field.particle_io.BigFile",
+        return_value=mock_bigfile_dm_positions,
+    ):
+        density, density_info = density_field_cic_main(
+            dm_particles_file=block_path,
+            mass_particle=MASS_PARTICLE,
+            box_size=BOX_SIZE,
+            n_grid=3,
+            batch_size=2,
+        )
+    assert density_info.n_particles == 6
+    assert np.allclose(density, expected_mass_field)
+
+
+def test_save_density_field_cic_bigfile_path(expected_mass_field):
+    with TemporaryDirectory() as tmpdirname:
+        density_info = DensityFieldInfo(
+            n_grid=3, box_size=BOX_SIZE, n_particles=6, mass_particle=MASS_PARTICLE
+        )
+        dm_path = "/data/snap_1.0000/1"
+        with patch("os.path.isdir", return_value=True), patch(
+            "os.path.isfile", return_value=False
+        ):
+            output_file = save_density_field_cic(
+                expected_mass_field, tmpdirname, dm_path, density_info
+            )
+        assert output_file.endswith("snap_1.0000_density")

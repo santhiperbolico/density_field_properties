@@ -5,6 +5,7 @@ from typing import Optional
 
 import numpy as np
 
+from density_field_properties.density_field.particle_io import iter_dm_particle_batches
 from density_field_properties.density_field.utils import DensityFieldInfo
 
 
@@ -106,30 +107,28 @@ def density_field_cic_main(
             - The resulting density field as a NumPy array.
             - The total number of particles used in the computation.
     """
-    batch = 0
     mass_field = None
     n_particles = 0
     dx = box_size / n_grid
 
     n_iter = 0
-    condition = True
     logging.info("- Computing density field by batches from file %s" % dm_particles_file)
 
-    while condition:
-        data = np.loadtxt(dm_particles_file, skiprows=batch, max_rows=batch_size)
-        n_particles_batch = data.shape[0]
-        condition = n_particles_batch > 0
-        if condition:
-            mass_field = mass_field_cic(data, mass_particle, box_size, n_grid, mass_field)
-            batch += n_particles_batch
-            n_particles += n_particles_batch
-            logging.info(
-                "\t -- %i Lines %i to %i have been loaded."
-                % (n_iter, batch - n_particles_batch, batch)
-            )
-            n_iter += 1
-            del data
-            gc.collect()
+    for positions, start_idx, end_idx in iter_dm_particle_batches(
+        dm_particles_file, batch_size=batch_size
+    ):
+        mass_field = mass_field_cic(positions, mass_particle, box_size, n_grid, mass_field)
+        n_batch = positions.shape[0]
+        n_particles += n_batch
+        logging.info(
+            "\t -- %i particles %i to %i have been loaded." % (n_iter, start_idx, end_idx)
+        )
+        n_iter += 1
+        del positions
+        gc.collect()
+
+    if mass_field is None:
+        mass_field = np.zeros((n_grid, n_grid, n_grid), dtype=np.float64)
 
     density = mass_field / (dx**3)
     density_info = DensityFieldInfo(
@@ -162,16 +161,20 @@ def save_density_field_cic(
     output_file: str
         Outpu file name.
     """
-    dm_particles_file = dm_particles_file.split(".")[0]
-    output_data_file = "%s_density" % os.path.basename(dm_particles_file).replace(".dat", "")
-    output_data_file = os.path.join(path, output_data_file)
+    normalized = os.path.normpath(dm_particles_file)
+    base = os.path.basename(normalized)
+    if os.path.isdir(normalized):
+        if base.isdigit():
+            output_stem = os.path.basename(os.path.dirname(normalized))
+        else:
+            output_stem = base
+    else:
+        output_stem, _ = os.path.splitext(base)
+
+    output_data_file = os.path.join(path, "%s_density" % output_stem)
     density.tofile(output_data_file)
 
-    output_info_file = "%s_density_info.txt" % os.path.basename(dm_particles_file).replace(
-        ".dat", ""
-    )
-
-    output_info_file = os.path.join(path, output_info_file)
+    output_info_file = os.path.join(path, "%s_density_info.txt" % output_stem)
     density_info.save_information(output_info_file)
 
     return output_data_file
