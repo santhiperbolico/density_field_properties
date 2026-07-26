@@ -13,7 +13,8 @@ def get_halo_catalog_reader(catalog_name: str) -> HaloCatalogReader:
 
     This function checks if the provided catalog name corresponds to a supported
     halo catalog reader and returns the appropriate reader class. If the catalog
-    name is not recognized, a ValueError is raised.
+    name is not recognized, a ValueError is raised. Use ``rockstar`` for Rockstar
+    ``.list`` catalogs, including outputs from FastPM+Rockstar pipelines.
 
     Parameters
     ----------

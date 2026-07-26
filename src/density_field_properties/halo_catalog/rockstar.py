@@ -1,5 +1,5 @@
 import logging
-from typing import Generator, Optional, Tuple
+from typing import Dict, Generator, Optional, Tuple
 
 import numpy as np
 
@@ -13,6 +13,65 @@ ROCKSTAR_HALO_COLUMNS_POSITION = {
     "halo_z": 19,
     "m200b": 39,
 }
+
+_COSMOLOGY_REQUIRED_FIELDS = ("omega_matter", "omega_lambda", "h0")
+_ROCKSTAR_COSMOLOGY_ALIASES = {
+    "omega_matter": frozenset({"om", "omega_m", "omega_matter"}),
+    "omega_lambda": frozenset({"ol", "omega_l", "omega_lambda"}),
+    "h0": frozenset({"h", "h0"}),
+}
+
+
+def _normalize_rockstar_cosmology_field(raw_key: str) -> Optional[str]:
+    """
+    Map a Rockstar header key to a ``Cosmology`` constructor field name.
+
+    Parameters
+    ----------
+    raw_key : str
+        Key text before ``=`` in a ``#`` header segment.
+
+    Returns
+    -------
+    Optional[str]
+        Canonical field name, or ``None`` if the key is not recognized.
+    """
+    token = raw_key.strip().replace(" ", "_").lower()
+    if token.startswith("omega_m"):
+        return "omega_matter"
+    if token.startswith("omega_l"):
+        return "omega_lambda"
+    for field, aliases in _ROCKSTAR_COSMOLOGY_ALIASES.items():
+        if token in aliases:
+            return field
+    return None
+
+
+def _parse_rockstar_hash_line_cosmology(line: str) -> Dict[str, float]:
+    """
+    Extract cosmology key-value pairs from a single Rockstar ``#`` comment line.
+
+    Parameters
+    ----------
+    line : str
+        One header line, typically starting with ``#``.
+
+    Returns
+    -------
+    Dict[str, float]
+        Parsed canonical cosmology fields and numeric values.
+    """
+    parameters: Dict[str, float] = {}
+    body = line[1:] if line.startswith("#") else line
+    for segment in body.split(";"):
+        if "=" not in segment:
+            continue
+        key, value = segment.split("=", 1)
+        field = _normalize_rockstar_cosmology_field(key)
+        if field is None:
+            continue
+        parameters[field] = float(value.strip())
+    return parameters
 
 
 def read_rockstar_cosmology_header(path: str) -> Optional[Cosmology]:
@@ -36,35 +95,29 @@ def read_rockstar_cosmology_header(path: str) -> Optional[Cosmology]:
         A `Cosmology` instance populated with parsed parameters from the file,
         or None if the file could not be parsed successfully.
     """
-    cosmology = None
+    merged: Dict[str, float] = {}
 
     with open(path, "r") as f:
         for line in f:
             if not line.startswith("#"):
                 break
+            merged.update(_parse_rockstar_hash_line_cosmology(line))
 
-            if line.startswith("#Omega_M"):
-                parameters = {}
-                for param_line in line[1:].split(";"):
-                    if "=" not in param_line:
-                        continue
-                    key, value = param_line.split("=", 1)
-                    param = key.strip().replace(" ", "_").lower()
-                    value = float(value.strip())
-                    if param.startswith("omega_m"):
-                        param = "omega_matter"
-                    if param.startswith("omega_l"):
-                        param = "omega_lambda"
-                    parameters[param] = value
+    if not all(field in merged for field in _COSMOLOGY_REQUIRED_FIELDS):
+        return None
 
-                try:
-                    cosmology = Cosmology(**parameters)
-                except TypeError:
-                    logging.warning(
-                        "Could not parse parameter(s) %s from cosmology header.",
-                        list(parameters.keys()),
-                    )
-    return cosmology
+    try:
+        return Cosmology(
+            omega_matter=merged["omega_matter"],
+            omega_lambda=merged["omega_lambda"],
+            h0=merged["h0"],
+        )
+    except TypeError:
+        logging.warning(
+            "Could not parse parameter(s) %s from cosmology header.",
+            list(merged.keys()),
+        )
+        return None
 
 
 class RockstarCatalogReader(HaloCatalogReader):
