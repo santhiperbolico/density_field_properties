@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Generator, Optional, Tuple
+from typing import Generator, Optional, Tuple
 
 import numpy as np
 
@@ -47,7 +47,7 @@ def _normalize_rockstar_cosmology_field(raw_key: str) -> Optional[str]:
     return None
 
 
-def _parse_rockstar_hash_line_cosmology(line: str) -> Dict[str, float]:
+def _parse_rockstar_hash_line_cosmology(line: str) -> dict[str, float]:
     """
     Extract cosmology key-value pairs from a single Rockstar ``#`` comment line.
 
@@ -58,10 +58,10 @@ def _parse_rockstar_hash_line_cosmology(line: str) -> Dict[str, float]:
 
     Returns
     -------
-    Dict[str, float]
+    dict[str, float]
         Parsed canonical cosmology fields and numeric values.
     """
-    parameters: Dict[str, float] = {}
+    parameters = {}
     body = line[1:] if line.startswith("#") else line
     for segment in body.split(";"):
         if "=" not in segment:
@@ -95,7 +95,7 @@ def read_rockstar_cosmology_header(path: str) -> Optional[Cosmology]:
         A `Cosmology` instance populated with parsed parameters from the file,
         or None if the file could not be parsed successfully.
     """
-    merged: Dict[str, float] = {}
+    merged = {}
 
     with open(path, "r") as f:
         for line in f:
