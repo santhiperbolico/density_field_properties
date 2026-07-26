@@ -172,7 +172,8 @@ def _iter_fastpm_bigfile_batches(
     main_folder, complete_path = _fastpm_block_paths(os.path.normpath(path))
     bfile = BigFile(complete_path)
     position_data = bfile.open(f"{main_folder}/Position")
-    n_total = int(position_data.shape[0])
+    # position_data.size is equal to position_data[:].shape[0]
+    n_total = position_data.size
     if n_total == 0:
         return
 

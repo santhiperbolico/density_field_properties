@@ -12,6 +12,17 @@ from density_field_properties.density_field.particle_io import (
 PARTICLE_POSITIONS = np.array([[1.0, 1.0, 1.0], [2.0, 2.0, 2.0], [3.0, 3.0, 3.0], [4.0, 4.0, 4.0]])
 
 
+class _MockBigFilePositionBlock:
+    """Mimics BigFile Position dataset: ``size`` is particle count, not flattened length."""
+
+    def __init__(self, positions: np.ndarray) -> None:
+        self._positions = positions
+        self.size = positions.shape[0]
+
+    def __getitem__(self, key):
+        return self._positions[key]
+
+
 @pytest.fixture
 def text_particles_file():
     with TemporaryDirectory() as tmpdirname:
@@ -31,7 +42,7 @@ def mock_bigfile_positions():
 
     def open_side_effect(name):
         if name.endswith("/Position"):
-            return positions
+            return _MockBigFilePositionBlock(positions)
         raise KeyError(f"Unexpected block name: {name}")
 
     bfile.open.side_effect = open_side_effect
