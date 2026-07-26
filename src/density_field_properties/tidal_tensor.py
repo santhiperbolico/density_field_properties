@@ -443,7 +443,8 @@ class TidalTensorArray:
             diff_gs = gs_scales - gaussian_scale[i]
             if (diff_gs < 0).all() or (diff_gs > 0).all():
                 raise ValueError(f"Gaussian scale {gaussian_scale[i]} not found in the list")
-            gs_i = int(np.where((diff_gs == max(diff_gs[diff_gs <= 0])))[0])
+            lower_bound = np.max(diff_gs[diff_gs <= 0])
+            gs_i = int(np.where(diff_gs == lower_bound)[0][0])
             gs_0[i] = self.gaussian_scale_list[gs_i]
             gs_1[i] = self.gaussian_scale_list[gs_i + 1]
 

@@ -67,8 +67,8 @@ class FastPMCatalogReader(HaloCatalogReader):
         main_folder = path.split("/")[-1]
         complete_path = "/".join(path.split("/")[:-1])
         bfile = BigFile(complete_path)
-        cosmology = read_fastpm_cosmology_header(bfile.attrs)
-        mp = float(bfile.attrs["UnitMass_in_g"][0]) / MSUN_G / cosmology.h0
+        cosmology = read_fastpm_cosmology_header(bfile["Header"].attrs)
+        mp = float(bfile["Header"].attrs["UnitMass_in_g"][0]) / MSUN_G / cosmology.h0
 
         positions = (0, 1, 2, 3, 4)
         if isinstance(cosmology, Cosmology):
