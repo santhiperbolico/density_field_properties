@@ -1,4 +1,4 @@
-name: hod_madrid_py
+name: density_field_properties
 channels:
   - conda-forge
   - defaults
