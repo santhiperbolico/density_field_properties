@@ -1,29 +1,29 @@
-# HALOSCOPE (código vendored)
+# HALOSCOPE (vendored)
 
 [HALOSCOPE](https://github.com/computationalAstroUAM/haloscope) — Halo PropertieS having Covariance Preserved with Environment (Ramakrishnan et al., 2024).
 
-## Código upstream
+## Upstream code
 
-`haloscope.py` es una **copia literal** del módulo  
+`haloscope.py` is a **verbatim copy** of the upstream module  
 [haloscope.py](https://github.com/computationalAstroUAM/haloscope/blob/main/haloscope.py).  
-No se reformatea con black/flake8/isort en este repo (ver `src/.pre-commit-config.yaml`).
+It is not reformatted with black/flake8/isort in this repo (see `src/.pre-commit-config.yaml`).
 
-Import en el proyecto:
+Import in this project:
 
 ```python
 from density_field_properties.haloscope import ConditionalMultiVariateGaussian
 ```
 
-## Contenido propio
+## Repository-specific code
 
-`sim_to_fastpm/` es el pipeline UNIT → FastPM de este repositorio.
+`sim_to_fastpm/` contains the UNIT → FastPM enrichment pipeline used here.
 
-## Alternativa: dependencia pip
+## Alternative: pip dependency
 
-Para no versionar el fichero, añade en `environment.yml` bajo `pip:`:
+To avoid vendoring the file, add under `pip:` in `environment.yml`:
 
 ```yaml
 - haloscope @ git+https://github.com/computationalAstroUAM/haloscope.git@main
 ```
 
-Elimina `haloscope.py` y usa `from haloscope import ConditionalMultiVariateGaussian` donde haga falta.
+Remove `haloscope.py` and use `from haloscope import ConditionalMultiVariateGaussian` where needed.
