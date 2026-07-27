@@ -5,10 +5,13 @@ import numpy as np
 import pytest
 
 from density_field_properties.density_field.cic_deposit import (
+    delta_field_from_saved_cic,
     density_field_cic_main,
+    get_delta_density,
     load_density_field_cic,
     mass_field_cic,
     save_density_field_cic,
+    weighted_field_cic,
 )
 from density_field_properties.density_field.utils import DensityFieldInfo
 
@@ -48,7 +51,15 @@ def test_mass_field_cic(dm_particles, expected_mass_field):
     mass_field = mass_field_cic(
         data=dm_particles, mass_particle=MASS_PARTICLE, box_size=BOX_SIZE, n_grid=3
     )
-    assert np.allclose(mass_field, expected_mass_field)
+    np.testing.assert_allclose(mass_field, expected_mass_field)
+
+
+def test_weighted_field_cic_matches_uniform_mass(dm_particles, expected_mass_field):
+    weights = np.full(dm_particles.shape[0], MASS_PARTICLE, dtype=np.float64)
+    mass_field = weighted_field_cic(
+        data=dm_particles, weights=weights, box_size=BOX_SIZE, n_grid=3
+    )
+    np.testing.assert_allclose(mass_field, expected_mass_field)
 
 
 def test_density_field_cic_main(dm_particles, expected_mass_field):
@@ -149,3 +160,23 @@ def test_save_density_field_cic_bigfile_path(expected_mass_field):
                 expected_mass_field, tmpdirname, dm_path, density_info
             )
         assert output_file.endswith("snap_1.0000_density")
+
+
+def test_delta_field_from_saved_cic(expected_mass_field):
+    with TemporaryDirectory() as tmpdirname:
+        dm_particles_file = f"{tmpdirname}/dm_particles.txt"
+        density_info = DensityFieldInfo(
+            n_grid=3, box_size=BOX_SIZE, n_particles=6, mass_particle=MASS_PARTICLE
+        )
+        output_file = save_density_field_cic(
+            expected_mass_field, tmpdirname, dm_particles_file, density_info
+        )
+        output_info_file = f"{tmpdirname}/dm_particles_density_info.txt"
+        delta = delta_field_from_saved_cic(
+            output_file,
+            output_info_file,
+            expected_box_size=BOX_SIZE,
+        )
+        density_bar = 6 * MASS_PARTICLE / (BOX_SIZE**3)
+        expected_delta = expected_mass_field / density_bar - 1
+        assert np.allclose(delta, expected_delta)

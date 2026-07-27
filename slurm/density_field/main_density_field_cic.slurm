@@ -3,8 +3,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --job-name=density_field_cic
-#SBATCH --error=output/fast_pm_bigfile/density_field_cic.log
-#SBATCH --output=output/fast_pm_bigfile/density_field_cic.out
+#SBATCH --error=output/unit_files/density_field_cic.log
+#SBATCH --output=output/unit_files/density_field_cic.out
 #SBATCH --partition=all
 #SBATCH --exclude=epi
 #SBATCH --time=30-00:00:00
@@ -17,8 +17,8 @@ export PYTHONPATH=/home/arnes/santiago_arranz/density_field_properties/src
 source /home/arnes/miniconda3/etc/profile.d/conda.sh
 conda activate density_field_properties
 
-DM_PARTICLES_FILE="/data21/users/mruiz/fastpm_MN5/fastpm_tfm/output_01/snap_1.0000/1"
-OUTPUT_PATH="output/fast_pm_bigfile"
+DM_PARTICLES_FILE="output/unit_files/dm_particles_0.5_128"
+OUTPUT_PATH="output/unit_files"
 
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starting CIC density field calculation"
 

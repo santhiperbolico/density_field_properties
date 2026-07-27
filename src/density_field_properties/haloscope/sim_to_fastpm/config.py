@@ -14,6 +14,17 @@ FASTPM_BOXSIZE_MPC_H = 1000.0
 ENV_RADIUS_MPC_H = 5.0
 CALIBRATE_MASS = True
 
+DM_MASS_PARTICLE_MSUN_H = 1.2e9
+FASTPM_DM_PARTICLES_PATH = Path(
+    "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/output_01/snap_1.0000/1"
+)
+FASTPM_SAVED_CIC_DENSITY = Path("output/fast_pm_bigfile/snap_1.0000_density")
+FASTPM_SAVED_CIC_DENSITY_INFO = Path("output/fast_pm_bigfile/snap_1.0000_density_info.txt")
+SIM_SAVED_CIC_DENSITY = Path("output/unit_files/dm_particles_0.5_128_density")
+SIM_SAVED_CIC_DENSITY_INFO = Path("output/unit_files/dm_particles_0.5_128_density_info.txt")
+SIM_DM_PARTICLES_PATH = Path("output/unit_files/dm_particles_0.5_128")
+ASSEMBLY_BIAS_DM_BATCH_SIZE: Optional[int] = None
+
 INPUT_FEATURES = ("env",)
 OUTPUT_FEATURES = ("cv", "Spin", "ca", "ba")
 
@@ -114,6 +125,54 @@ def default_sim_hlist_path() -> Path:
         Path to ``hlist_1.00000.list.bz2``.
     """
     return SIM_ROCKSTAR_ROOT / SIM_HLIST_RELATIVE
+
+
+def default_sim_saved_cic_density_paths() -> tuple[Path, Path]:
+    """
+    Relative paths to the precomputed UNIT SIM CIC density under ``output/unit_files/``.
+
+    Returns
+    -------
+    tuple[Path, Path]
+        ``(density_binary, density_info_txt)`` from ``main_density_field_cic``.
+    """
+    return SIM_SAVED_CIC_DENSITY, SIM_SAVED_CIC_DENSITY_INFO
+
+
+def default_fastpm_saved_cic_density_paths() -> tuple[Path, Path]:
+    """
+    Relative paths to the precomputed FastPM CIC density under the repo ``output/`` tree.
+
+    Returns
+    -------
+    tuple[Path, Path]
+        ``(density_binary, density_info_txt)`` as produced by ``main_density_field_cic``.
+    """
+    return FASTPM_SAVED_CIC_DENSITY, FASTPM_SAVED_CIC_DENSITY_INFO
+
+
+def default_fastpm_dm_particles_path() -> Path:
+    """
+    Default FastPM BigFile block path for DM at ``snap_1.0000``.
+
+    Returns
+    -------
+    Path
+        Block directory under the FastPM ``output_*`` snapshot.
+    """
+    return FASTPM_DM_PARTICLES_PATH
+
+
+def default_sim_dm_particles_path() -> Optional[Path]:
+    """
+    UNIT SIM DM particle file for live CIC (relative to repo ``output/unit_files/``).
+
+    Returns
+    -------
+    Optional[Path]
+        Path to DM positions when configured; ``None`` skips the DM fallback.
+    """
+    return SIM_DM_PARTICLES_PATH
 
 
 def default_fastpm_list_path() -> Path:

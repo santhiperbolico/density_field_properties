@@ -9,6 +9,68 @@ from density_field_properties.density_field.particle_io import iter_dm_particle_
 from density_field_properties.density_field.utils import DensityFieldInfo
 
 
+def weighted_field_cic(
+    data: np.ndarray,
+    weights: np.ndarray,
+    box_size: float,
+    n_grid: int,
+    mass_field: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """
+    Accumulate per-tracer weights on a cubic grid with the CIC scheme.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        Positions with shape ``(N, 3)`` in Mpc/h.
+    weights : np.ndarray
+        Non-negative weight per tracer (e.g. particle mass or ``M200b``).
+    box_size : float
+        Periodic box side length in Mpc/h.
+    n_grid : int
+        Cells per dimension.
+    mass_field : Optional[np.ndarray], optional
+        Existing grid to accumulate into.
+
+    Returns
+    -------
+    np.ndarray
+        Grid of accumulated weights, shape ``(n_grid, n_grid, n_grid)``.
+    """
+    if data.shape[0] != weights.shape[0]:
+        raise ValueError("positions and weights must have the same length")
+    dx = box_size / n_grid
+    if not isinstance(mass_field, np.ndarray):
+        mass_field = np.zeros((n_grid, n_grid, n_grid), dtype=np.float64)
+
+    grid_position_x = data[:, 0] / dx
+    grid_position_y = data[:, 1] / dx
+    grid_position_z = data[:, 2] / dx
+
+    cell_i = np.floor(grid_position_x).astype(int) % n_grid
+    cell_j = np.floor(grid_position_y).astype(int) % n_grid
+    cell_k = np.floor(grid_position_z).astype(int) % n_grid
+
+    distance_fraction_x = grid_position_x - cell_i
+    distance_fraction_y = grid_position_y - cell_j
+    distance_fraction_z = grid_position_z - cell_k
+
+    for di in [0, 1]:
+        wx = (1 - distance_fraction_x) * (1 - di) + distance_fraction_x * di
+        ii = (cell_i + di) % n_grid
+        for dj in (0, 1):
+            wy = (1 - distance_fraction_y) * (1 - dj) + distance_fraction_y * dj
+            jj = (cell_j + dj) % n_grid
+            wxy = wx * wy
+            for dk in (0, 1):
+                wz = (1 - distance_fraction_z) * (1 - dk) + distance_fraction_z * dk
+                kk = (cell_k + dk) % n_grid
+                w = wxy * wz
+                np.add.at(mass_field, (ii, jj, kk), weights * w)
+
+    return mass_field
+
+
 def mass_field_cic(
     data: np.ndarray,
     mass_particle: float,
@@ -41,36 +103,71 @@ def mass_field_cic(
         Array with masses added according to CIC methodology. If mass_field parameter is provided,
         new values will be added to this element.
     """
-    dx = box_size / n_grid
-    if not isinstance(mass_field, np.ndarray):
-        mass_field = np.zeros((n_grid, n_grid, n_grid), dtype=np.float64)
+    weights = np.full(data.shape[0], mass_particle, dtype=np.float64)
+    return weighted_field_cic(data, weights, box_size, n_grid, mass_field)
 
-    grid_position_x = data[:, 0] / dx
-    grid_position_y = data[:, 1] / dx
-    grid_position_z = data[:, 2] / dx
 
-    cell_i = np.floor(grid_position_x).astype(int) % n_grid
-    cell_j = np.floor(grid_position_y).astype(int) % n_grid
-    cell_k = np.floor(grid_position_z).astype(int) % n_grid
+def overdensity_from_cic_grid(cic_grid: np.ndarray) -> np.ndarray:
+    """
+    Convert a CIC-deposited scalar grid to the overdensity ``delta = rho / mean - 1``.
 
-    distance_fraction_x = grid_position_x - cell_i
-    distance_fraction_y = grid_position_y - cell_j
-    distance_fraction_z = grid_position_z - cell_k
+    Parameters
+    ----------
+    cic_grid : np.ndarray
+        Non-negative accumulated weights on a cubic grid.
 
-    for di in [0, 1]:
-        wx = (1 - distance_fraction_x) * (1 - di) + distance_fraction_x * di
-        ii = (cell_i + di) % n_grid
-        for dj in (0, 1):
-            wy = (1 - distance_fraction_y) * (1 - dj) + distance_fraction_y * dj
-            jj = (cell_j + dj) % n_grid
-            wxy = wx * wy
-            for dk in (0, 1):
-                wz = (1 - distance_fraction_z) * (1 - dk) + distance_fraction_z * dk
-                kk = (cell_k + dk) % n_grid
-                w = wxy * wz
-                np.add.at(mass_field, (ii, jj, kk), mass_particle * w)
+    Returns
+    -------
+    np.ndarray
+        Overdensity field with the same shape as ``cic_grid``.
+    """
+    mean_density = cic_grid.mean()
+    if mean_density <= 0.0:
+        raise ValueError("CIC grid has zero mean; cannot form overdensity.")
+    return cic_grid / mean_density - 1.0
 
-    return mass_field
+
+def delta_field_from_dm_particles(
+    dm_particles_file: str,
+    mass_particle: float,
+    box_size: float,
+    n_grid: int,
+    batch_size: Optional[int] = None,
+) -> np.ndarray:
+    """
+    Build the matter overdensity field from DM particle positions (text or FastPM BigFile).
+
+    Parameters
+    ----------
+    dm_particles_file : str
+        Path passed to ``iter_dm_particle_batches`` (text file or FastPM block directory).
+    mass_particle : float
+        DM particle mass in Msun/h.
+    box_size : float
+        Box side length in Mpc/h.
+    n_grid : int
+        Grid cells per dimension.
+    batch_size : Optional[int], optional
+        Particle batch size for I/O; ``None`` reads all particles in one batch.
+
+    Returns
+    -------
+    np.ndarray
+        Matter overdensity ``delta`` on a cubic grid.
+    """
+    density, density_info = density_field_cic_main(
+        dm_particles_file=dm_particles_file,
+        mass_particle=mass_particle,
+        box_size=box_size,
+        n_grid=n_grid,
+        batch_size=batch_size,
+    )
+    return get_delta_density(
+        density,
+        density_info.n_particles,
+        mass_particle,
+        box_size,
+    )
 
 
 def density_field_cic_main(
@@ -212,6 +309,53 @@ def load_density_field_cic(
         n_grid = density_info.n_grid
         density = density.reshape((n_grid, n_grid, n_grid))
     return density, density_info
+
+
+def delta_field_from_saved_cic(
+    density_field_cic_file: str,
+    density_field_cic_info_file: str,
+    expected_box_size: Optional[float] = None,
+) -> np.ndarray:
+    """
+    Load a precomputed CIC density grid and convert it to matter overdensity ``delta``.
+
+    Parameters
+    ----------
+    density_field_cic_file : str
+        Binary density file written by ``save_density_field_cic``.
+    density_field_cic_info_file : str
+        Companion ``*_density_info.txt`` metadata file.
+    expected_box_size : Optional[float], optional
+        If set, require a matching ``box_size`` in the info file (Mpc/h).
+
+    Returns
+    -------
+    np.ndarray
+        Matter overdensity on the stored grid.
+
+    Raises
+    ------
+    ValueError
+        If metadata is missing or ``expected_box_size`` does not match.
+    """
+    density, density_info = load_density_field_cic(
+        density_field_cic_file, density_field_cic_info_file
+    )
+    if density_info is None:
+        raise ValueError("density_field_cic_info_file is required for saved CIC grids")
+    if expected_box_size is not None and not np.isclose(
+        float(density_info.box_size), float(expected_box_size)
+    ):
+        raise ValueError(
+            "Saved CIC box_size "
+            f"{density_info.box_size} does not match expected {expected_box_size}"
+        )
+    return get_delta_density(
+        density,
+        density_info.n_particles,
+        density_info.mass_particle,
+        density_info.box_size,
+    )
 
 
 def get_delta_density(
