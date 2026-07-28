@@ -27,6 +27,9 @@ jobs:
           python-version: "3.14"
           cache-environment: true
 
+      - name: Upgrade pre-commit (Black 25 hook manifest needs recent pre-commit)
+        run: python -m pip install --upgrade "pre-commit>=4.6.0" "identify>=2.6.0"
+
       - name: Run pre-commit
         run: pre-commit run --all-files --config src/.pre-commit-config.yaml
 
