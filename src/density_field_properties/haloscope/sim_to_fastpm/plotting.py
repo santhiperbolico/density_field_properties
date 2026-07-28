@@ -434,10 +434,13 @@ def median_property_vs_mass(
         Mass bin centers and median property per bin.
     """
     log_mass = np.log10(mass)
-    mass_centers = 10 ** stats.binned_statistic(
-        log_mass, log_mass, "mean", bins=n_bins, range=mass_range
-    )[0]
-    medians = 10 ** stats.binned_statistic(
-        log_mass, np.log10(values), "median", bins=n_bins, range=mass_range
-    )[0]
+    mass_centers = (
+        10 ** stats.binned_statistic(log_mass, log_mass, "mean", bins=n_bins, range=mass_range)[0]
+    )
+    medians = (
+        10
+        ** stats.binned_statistic(
+            log_mass, np.log10(values), "median", bins=n_bins, range=mass_range
+        )[0]
+    )
     return mass_centers, medians

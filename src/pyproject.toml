@@ -1,7 +1,7 @@
 # Configuración de Black
 [tool.black]
 line-length = 99
-target-version = ["py311"]
+target-version = ["py313"]
 extend-exclude = "density_field_properties/haloscope/haloscope\\.py"
 
 # Configuración de isort

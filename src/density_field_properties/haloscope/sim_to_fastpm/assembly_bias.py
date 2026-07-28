@@ -460,7 +460,9 @@ def paranjape_halo_by_halo_bias(
     weighted_delta_k = np.zeros_like(delta_k, dtype=np.complex128)
     weighted_delta_k[low_k] = delta_k[low_k] / safe_power[low_k]
 
-    bias_field = irfftn(weighted_delta_k, s=(n_grid, n_grid, n_grid), axes=(0, 1, 2)).real * n_grid**3
+    bias_field = (
+        irfftn(weighted_delta_k, s=(n_grid, n_grid, n_grid), axes=(0, 1, 2)).real * n_grid**3
+    )
     return _trilinear_sample_field(positions_mpc_h, bias_field, boxsize_mpc_h)
 
 

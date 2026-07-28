@@ -24,7 +24,7 @@ jobs:
           miniforge-version: latest
           environment-file: src/environment.yml
           activate-environment: density_field_properties
-          python-version: "3.11"
+          python-version: "3.14"
           cache-environment: true
 
       - name: Run pre-commit

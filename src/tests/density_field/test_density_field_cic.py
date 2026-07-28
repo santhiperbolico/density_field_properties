@@ -7,7 +7,6 @@ import pytest
 from density_field_properties.density_field.cic_deposit import (
     delta_field_from_saved_cic,
     density_field_cic_main,
-    get_delta_density,
     load_density_field_cic,
     mass_field_cic,
     save_density_field_cic,
@@ -128,13 +127,15 @@ def test_density_field_cic_main_fastpm_bigfile(
     dm_particles, expected_mass_field, mock_bigfile_dm_positions
 ):
     block_path = "/data/snap_1.0000/1"
-    with patch("os.path.normpath", side_effect=lambda p: p), patch(
-        "os.path.exists", return_value=True
-    ), patch("os.path.isfile", return_value=False), patch(
-        "os.path.isdir", return_value=True
-    ), patch(
-        "density_field_properties.density_field.particle_io.BigFile",
-        return_value=mock_bigfile_dm_positions,
+    with (
+        patch("os.path.normpath", side_effect=lambda p: p),
+        patch("os.path.exists", return_value=True),
+        patch("os.path.isfile", return_value=False),
+        patch("os.path.isdir", return_value=True),
+        patch(
+            "density_field_properties.density_field.particle_io.BigFile",
+            return_value=mock_bigfile_dm_positions,
+        ),
     ):
         density, density_info = density_field_cic_main(
             dm_particles_file=block_path,
@@ -153,8 +154,9 @@ def test_save_density_field_cic_bigfile_path(expected_mass_field):
             n_grid=3, box_size=BOX_SIZE, n_particles=6, mass_particle=MASS_PARTICLE
         )
         dm_path = "/data/snap_1.0000/1"
-        with patch("os.path.isdir", return_value=True), patch(
-            "os.path.isfile", return_value=False
+        with (
+            patch("os.path.isdir", return_value=True),
+            patch("os.path.isfile", return_value=False),
         ):
             output_file = save_density_field_cic(
                 expected_mass_field, tmpdirname, dm_path, density_info
