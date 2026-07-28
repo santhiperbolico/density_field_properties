@@ -147,15 +147,15 @@ class HaloCatalogData:
             properties_data = (properties_data,)
 
         cols_to_save = [self.id_position]
-        header_data = f"Halo ID"
+        header_data = "Halo ID"
         if save_positions:
-            header_data += f", X, Y, Z"
+            header_data += ", X, Y, Z"
             cols_to_save += [self.x_position, self.y_position, self.z_position]
         if save_m200b:
-            header_data += f", M200b"
+            header_data += ", M200b"
             cols_to_save.append(self.m200b_position)
         if save_rg:
-            header_data += f", R_G = 4 R200b / sqrt(5)"
+            header_data += ", R_G = 4 R200b / sqrt(5)"
             cols_to_save.append(self.rg_position)
         header_data += f", {properties_header} \n"
         properties_data = tuple(self.data[:, col] for col in cols_to_save) + properties_data

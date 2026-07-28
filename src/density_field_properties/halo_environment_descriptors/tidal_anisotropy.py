@@ -121,7 +121,7 @@ def _tidal_anisotropy_and_overdensity_from_halo_calaog_batches(
         start_offset=offset,
     ):
         logging.info(
-            f"Batch %i: %i halos, offset start=%i"
+            "Batch %i: %i halos, offset start=%i"
             % (batch_index, halo_data.n_halos, batch_start_offset)
         )
         halo_data = format_halo_catalog(halo_data, box_size, n_grid, r_min, r_max)
@@ -209,7 +209,7 @@ def _tidal_anisotropy_and_overdensity_from_halo_calaog_complete(
     )
 
     halo_data.save_properties(
-        path=output_path + f"halo_environment_descriptors.txt",
+        path=output_path + "halo_environment_descriptors.txt",
         properties_data=(tidal_anisotropy, overdensity),
         properties_header=f"Tidal Anisotropy, Overdensity\n Halo catalog: {halo_catalog_path}",
         **save_params,
