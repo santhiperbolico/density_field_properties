@@ -4,9 +4,6 @@ name: Density field — pre-commit and pytest (Conda)
 # Upstream (computationalAstroUAM): push/PR on main; pull_request_target on main
 # runs for PRs opened from forks (e.g. santhiperbolico:main → upstream:main).
 on:
-  push:
-    branches:
-      - develop
   pull_request:
     branches:
       - main
