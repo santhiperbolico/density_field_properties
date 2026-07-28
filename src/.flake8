@@ -8,4 +8,7 @@ ignore = W503, E203
 max_complexity = 20
 max_line_length = 99
 exclude = venv,env,.venv,.env
+extend-exclude =
+    density_field_properties/haloscope/haloscope.py,
+    src/density_field_properties/haloscope/haloscope.py
 format = %(path)s:%(row)d:%(col)d: %(code)s %(text)s (https://lintlyci.github.io/Flake8Rules/rules/%(code)s.html)

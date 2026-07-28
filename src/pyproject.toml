@@ -1,14 +1,21 @@
 # Configuración de Black
 [tool.black]
 line-length = 99
-target-version = ["py311"]
+target-version = ["py313"]
+extend-exclude = "haloscope/haloscope\\.py$"
 
 # Configuración de isort
 [tool.isort]
 profile = "black"
 line_length = 99
 skip_gitignore = true
+skip = ["density_field_properties/haloscope/haloscope.py"]
 known_local_folder = [
     "density_field_properties",
     "tests",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that need cluster data paths or long runtimes",
 ]
