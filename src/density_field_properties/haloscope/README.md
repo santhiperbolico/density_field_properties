@@ -4,8 +4,8 @@
 
 ## Upstream code
 
-`haloscope.py` is a **verbatim copy** of the upstream module  
-[haloscope.py](https://github.com/computationalAstroUAM/haloscope/blob/main/haloscope.py).  
+`haloscope.py` is a **verbatim copy** of the upstream module
+[haloscope.py](https://github.com/computationalAstroUAM/haloscope/blob/main/haloscope.py).
 It is not reformatted with black/flake8/isort in this repo (see `src/.pre-commit-config.yaml`).
 
 Import in this project:
