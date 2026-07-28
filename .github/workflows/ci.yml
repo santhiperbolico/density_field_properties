@@ -17,6 +17,11 @@ on:
       - main
   workflow_dispatch:
 
+# --- Group by branch name and cancel duplicates ---
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   precommit-and-pytest:
     name: Pre-commit and pytest (Python 3.14)
