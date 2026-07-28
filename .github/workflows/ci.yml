@@ -1,13 +1,33 @@
-name: CI Pipeline
+name: Density field — pre-commit and pytest (Conda)
 
+# Fork (santhiperbolico): push/PR on main and develop.
+# Upstream (computationalAstroUAM): push/PR on main; pull_request_target on main
+# runs for PRs opened from forks (e.g. santhiperbolico:main → upstream:main).
 on:
   push:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
   pull_request:
-    branches: [main, develop]
+    branches:
+      - main
+      - develop
+  pull_request_target:
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-  ci:
+  precommit-and-pytest:
+    name: Pre-commit and pytest (Python 3.14)
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request' ||
+      (
+        github.event_name == 'pull_request_target' &&
+        github.event.pull_request.head.repo.full_name != github.repository
+      )
     runs-on: ubuntu-latest
 
     defaults:
@@ -17,6 +37,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Conda environment
         uses: conda-incubator/setup-miniconda@v3
