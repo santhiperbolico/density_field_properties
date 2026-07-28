@@ -6,7 +6,6 @@ name: Density field — pre-commit and pytest (Conda)
 on:
   push:
     branches:
-      - main
       - develop
   pull_request:
     branches:
