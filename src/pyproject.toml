@@ -2,7 +2,7 @@
 [tool.black]
 line-length = 99
 target-version = ["py313"]
-extend-exclude = "density_field_properties/haloscope/haloscope\\.py"
+extend-exclude = "haloscope/haloscope\\.py$"
 
 # Configuración de isort
 [tool.isort]
