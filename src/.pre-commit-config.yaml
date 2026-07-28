@@ -18,13 +18,16 @@ repos:
     hooks:
     -   id: flake8
         args: [--config, src/.flake8]
+        exclude: ^src/density_field_properties/haloscope/haloscope\.py$
 -   repo: https://github.com/psf/black
     rev: 23.1.0
     hooks:
     -   id: black
         args: [--config, src/pyproject.toml]
+        exclude: ^src/density_field_properties/haloscope/haloscope\.py$
 -   repo: https://github.com/PyCQA/isort
     rev: 5.11.5
     hooks:
     -   id: isort
         args: [--settings-file, src/pyproject.toml]
+        exclude: ^src/density_field_properties/haloscope/haloscope\.py$

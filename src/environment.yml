@@ -19,6 +19,9 @@ dependencies:
 
   # Data handling and I/O
   - h5py
+  - pandas
+  - pyarrow
+  - scikit-learn
 
   #- typer
   #- loguru
