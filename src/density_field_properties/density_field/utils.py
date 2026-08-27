@@ -34,7 +34,7 @@ def get_grid_cell(data: np.ndarray, box_size: float | int, n_grid: int) -> np.nd
     cells = np.zeros((data.shape[0], n_cols))
     dx = box_size / n_grid
     for col_i in range(n_cols):
-        cells[:, col_i] = np.floor(data[:, 0] / dx).astype(int) % n_grid
+        cells[:, col_i] = np.floor(data[:, col_i] / dx).astype(int) % n_grid
     return cells.astype(int)
 
 

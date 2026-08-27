@@ -3,6 +3,16 @@ import pytest
 
 from density_field_properties.halo_catalog.halo_catalog import HaloCatalogData
 
+TIDAL_DESCRIPTOR_N_COLS = 8
+
+
+def _read_data_rows(path):
+    return np.loadtxt(path, comments="#")
+
+
+def _make_catalog(data):
+    return HaloCatalogData(data, 0, 1, 2, 3, 4, 5)
+
 
 def test_halo_catalog_data_basic_columns():
     data = np.array(
@@ -12,15 +22,7 @@ def test_halo_catalog_data_basic_columns():
         ]
     )
 
-    hcat = HaloCatalogData(
-        data,
-        halo_id_position=0,
-        halo_x_position=1,
-        halo_y_position=2,
-        halo_z_position=3,
-        halo_m200b_position=4,
-        halo_rg_position=5,
-    )
+    hcat = _make_catalog(data)
 
     assert hcat.n_halos == 2
     assert np.all(hcat.halo_id == np.array([10, 20]))
@@ -37,24 +39,86 @@ def test_halo_catalog_data_missing_m200b_raises():
         _ = hcat.halo_m200b
 
 
-def test_halo_catalog_data_save_properties(tmp_path):
-    data = np.array(
-        [
-            [1, 1.0, 2.0, 3.0, 10.0, 5.0],
-        ]
-    )
-    hcat = HaloCatalogData(data, 0, 1, 2, 3, 4, 5)
-
+@pytest.mark.parametrize(
+    "data, properties_data, properties_header, expected",
+    [
+        (
+            np.array([[1, 1.0, 2.0, 3.0, 10.0, 5.0]]),
+            np.array([42.0]),
+            "TestProperty",
+            np.array([[1.0, 1.0, 2.0, 3.0, 10.0, 5.0, 42.0]]),
+        ),
+        (
+            np.array(
+                [
+                    [1, 1.0, 2.0, 3.0, 10.0, 5.0],
+                    [2, 4.0, 5.0, 6.0, 20.0, 6.0],
+                ]
+            ),
+            (np.array([0.1, 0.2]), np.array([0.3, 0.4])),
+            "Tidal Anisotropy, Overdensity",
+            np.array(
+                [
+                    [1.0, 1.0, 2.0, 3.0, 10.0, 5.0, 0.1, 0.3],
+                    [2.0, 4.0, 5.0, 6.0, 20.0, 6.0, 0.2, 0.4],
+                ]
+            ),
+        ),
+        (
+            np.array(
+                [
+                    [1, 1.0, 2.0, 3.0, 10.0, 5.0],
+                    [2, 4.0, 5.0, 6.0, 20.0, 6.0],
+                ]
+            ),
+            np.array([[0.1, 0.3], [0.2, 0.4]]),
+            "Tidal Anisotropy, Overdensity",
+            np.array(
+                [
+                    [1.0, 1.0, 2.0, 3.0, 10.0, 5.0, 0.1, 0.3],
+                    [2.0, 4.0, 5.0, 6.0, 20.0, 6.0, 0.2, 0.4],
+                ]
+            ),
+        ),
+    ],
+)
+def test_halo_catalog_data_save_properties_layout(
+    tmp_path, data, properties_data, properties_header, expected
+):
+    hcat = _make_catalog(data)
     out_file = tmp_path / "saved.txt"
-    props = np.array([42.0])
 
     hcat.save_properties(
         path=str(out_file),
-        properties_data=props,
-        properties_header="TestProperty",
+        properties_data=properties_data,
+        properties_header=properties_header,
     )
 
     assert out_file.exists()
     txt = out_file.read_text()
     assert "Halo ID" in txt
-    assert "TestProperty" in txt
+    assert properties_header.split(",")[0].strip() in txt
+
+    saved = _read_data_rows(out_file)
+    if saved.ndim == 1:
+        saved = saved.reshape(1, -1)
+    assert saved.shape == expected.shape
+    np.testing.assert_allclose(saved, expected)
+
+
+def test_halo_catalog_data_save_properties_wrong_length_raises(tmp_path):
+    data = np.array(
+        [
+            [1, 1.0, 2.0, 3.0, 10.0, 5.0],
+            [2, 4.0, 5.0, 6.0, 20.0, 6.0],
+        ]
+    )
+    hcat = _make_catalog(data)
+    out_file = tmp_path / "saved.txt"
+
+    with pytest.raises(ValueError, match="number of halos"):
+        hcat.save_properties(
+            path=str(out_file),
+            properties_data=np.array([0.1, 0.2, 0.3]),
+            properties_header="TestProperty",
+        )

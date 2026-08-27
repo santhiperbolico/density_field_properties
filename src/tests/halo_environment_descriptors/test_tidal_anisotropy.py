@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
+from density_field_properties.halo_catalog.halo_catalog import HaloCatalogData
 from density_field_properties.halo_environment_descriptors.tidal_anisotropy import (
     ANISOTROPY_PATH,
     _tidal_anisotropy_and_overdensity_from_halo_calaog_batches,
@@ -12,6 +13,8 @@ from density_field_properties.halo_environment_descriptors.tidal_anisotropy impo
     tidal_anisotropy_and_overdensity_from_halo_calaog,
 )
 from density_field_properties.tidal_tensor import TidalTensorArray
+
+TIDAL_DESCRIPTOR_N_COLS = 8
 
 
 @pytest.fixture
@@ -152,3 +155,61 @@ def test_tidal_anisotropy_missing_tensor_path(tmp_path, mock_halo_catalog):
             n_grid=10,
             box_size=50,
         )
+
+
+@pytest.fixture
+def integration_halo_catalog():
+    reader = MagicMock()
+
+    def read_catalog(path, n_lines=None):
+        data = np.array(
+            [
+                [100, 2.0, 4.0, 6.0, 1e12, 1.0],
+                [200, 5.0, 5.0, 5.0, 2e12, 1.5],
+                [300, 1.0, 1.0, 1.0, 3e12, 4.0],
+            ]
+        )
+        return HaloCatalogData(data, 0, 1, 2, 3, 4, 5)
+
+    reader.read_catalog = MagicMock(side_effect=read_catalog)
+    return reader
+
+
+@pytest.fixture
+def small_tidal_tensor_array(tmp_path):
+    n_grid = 8
+    box_size = 10
+    delta = np.random.default_rng(0).normal(0, 0.01, (n_grid, n_grid, n_grid))
+    tidal_tensor_array = TidalTensorArray.from_delta(
+        delta=delta,
+        box_size=box_size,
+        path=str(tmp_path),
+        gaussian_scale_list=[0.5, 1.0, 2.0],
+    )
+    return tidal_tensor_array, box_size, n_grid
+
+
+def test_tidal_anisotropy_complete_writes_rows_per_halo(
+    tmp_path, integration_halo_catalog, small_tidal_tensor_array
+):
+    tidal_tensor_array, box_size, n_grid = small_tidal_tensor_array
+    n_halos_in_range = 2
+
+    _tidal_anisotropy_and_overdensity_from_halo_calaog_complete(
+        output_path=str(tmp_path) + "/",
+        tidal_tensor_array=tidal_tensor_array,
+        halo_catalog=integration_halo_catalog,
+        halo_catalog_path="catalog.txt",
+        n_grid=n_grid,
+        box_size=box_size,
+    )
+
+    output_file = os.path.join(tmp_path, "halo_environment_descriptors.txt")
+    assert os.path.exists(output_file)
+
+    saved = np.loadtxt(output_file, comments="#")
+    if saved.ndim == 1:
+        saved = saved.reshape(1, -1)
+
+    assert saved.shape == (n_halos_in_range, TIDAL_DESCRIPTOR_N_COLS)
+    assert not np.isnan(saved).any()
