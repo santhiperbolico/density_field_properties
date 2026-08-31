@@ -2,14 +2,12 @@
 #SBATCH -A 16cores
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
-#SBATCH --job-name=tidal_tensor_field
+#SBATCH --job-name=tidal_fastpm
 #SBATCH --error=output/fast_pm_bigfile/tidal_tensor_field.log
 #SBATCH --output=output/fast_pm_bigfile/tidal_tensor_field.out
 #SBATCH --partition=all
 #SBATCH --exclude=epi
 #SBATCH --time=30-00:00:00
-
-# Alias of main_tidal_tensor_field_fastpm.slurm (FastPM rerun after issue #12).
 
 set -euo pipefail
 cd /home/arnes/santiago_arranz/density_field_properties

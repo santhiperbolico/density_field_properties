@@ -91,6 +91,38 @@ class HaloCatalogData:
             raise ValueError("R_G = 4 R200b / sqrt(5) column not found in catalog")
         return self.data[:, self.rg_position]
 
+    @staticmethod
+    def _normalize_property_columns(
+        properties_data: np.ndarray | tuple[np.ndarray],
+    ) -> tuple[np.ndarray, ...]:
+        """
+        Convert custom property inputs into a tuple of 1D column arrays.
+
+        Parameters
+        ----------
+        properties_data : np.ndarray or tuple of np.ndarray
+            Custom properties as a 1D array, a 2D array, or a tuple of 1D arrays.
+
+        Returns
+        -------
+        tuple of np.ndarray
+            One 1D array per custom property column.
+
+        Raises
+        ------
+        ValueError
+            If ``properties_data`` is not a supported array structure.
+        """
+        if isinstance(properties_data, np.ndarray):
+            if len(properties_data.shape) > 2:
+                raise ValueError("properties_data must be a 1D or 2D array")
+            if len(properties_data.shape) == 2:
+                return tuple(properties_data[:, col] for col in range(properties_data.shape[1]))
+            return (properties_data,)
+        if isinstance(properties_data, tuple):
+            return properties_data
+        raise ValueError("properties_data must be a 1D or 2D array or a tuple of arrays")
+
     def save_properties(
         self,
         path: str,
@@ -106,7 +138,8 @@ class HaloCatalogData:
         This function allows saving astrophysical or simulation-related data to a text file in a
         specific format. The user can customize which columns to include (e.g., positions,
         halo mass, and custom properties). The provided `properties_data` can either be a
-        1D or 2D NumPy array. Headers and relevant metadata are formatted and included in the
+        1D or 2D NumPy array. Each halo is written on its own row with columns ordered as
+        in the header. Headers and relevant metadata are formatted and included in the
         output file.
 
         Parameters
@@ -129,7 +162,8 @@ class HaloCatalogData:
         Raises
         ------
         ValueError
-            If `properties_data` is not a 1D or 2D NumPy array.
+            If `properties_data` is not a 1D or 2D NumPy array, or if any column length
+            does not match the number of halos.
 
         Notes
         -----
@@ -139,12 +173,7 @@ class HaloCatalogData:
         appended to these columns.
 
         """
-        if isinstance(properties_data, np.ndarray) and len(properties_data.shape) > 2:
-            raise ValueError("properties_data must be a 1D or 2D array")
-        if isinstance(properties_data, np.ndarray) and len(properties_data.shape) == 2:
-            properties_data = (properties_data[:, col] for col in range(properties_data.shape[1]))
-        if isinstance(properties_data, np.ndarray) and len(properties_data.shape) == 1:
-            properties_data = (properties_data,)
+        property_cols = self._normalize_property_columns(properties_data)
 
         cols_to_save = [self.id_position]
         header_data = "Halo ID"
@@ -158,8 +187,15 @@ class HaloCatalogData:
             header_data += ", R_G = 4 R200b / sqrt(5)"
             cols_to_save.append(self.rg_position)
         header_data += f", {properties_header} \n"
-        properties_data = tuple(self.data[:, col] for col in cols_to_save) + properties_data
-        np.savetxt(path, properties_data, header=header_data)
+        catalog_cols = tuple(self.data[:, col] for col in cols_to_save)
+        all_cols = catalog_cols + property_cols
+        for col in all_cols:
+            if len(col) != self.n_halos:
+                raise ValueError(
+                    "Each property column must have length equal to the number of halos "
+                    f"({self.n_halos}), got length {len(col)}"
+                )
+        np.savetxt(path, np.column_stack(all_cols), header=header_data)
 
 
 class HaloCatalogReader(ABC):
