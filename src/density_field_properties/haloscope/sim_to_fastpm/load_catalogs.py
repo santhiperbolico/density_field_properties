@@ -12,6 +12,7 @@ from density_field_properties.halo_catalog.rockstar import RockstarCatalogReader
 from density_field_properties.haloscope.sim_to_fastpm.config import (
     EXTENDED_ROCKSTAR_MIN_COLUMNS,
     ROCKSTAR_LIST_COLUMNS,
+    ROCKSTAR_RESERVOIR_SEED,
     UNIT_HLIST_COLUMNS,
     UNIT_ROCKSTAR_LIST_COLUMNS,
 )
@@ -125,6 +126,74 @@ def _rockstar_pid_column_index(list_path: Path, pid_index: int) -> Optional[int]
     return None
 
 
+def _reservoir_sample_halo(
+    reservoir: list[tuple[float, float, float, float]],
+    sample_size: int,
+    seen_count: int,
+    position_x: float,
+    position_y: float,
+    position_z: float,
+    mass: float,
+    rng: np.random.Generator,
+) -> None:
+    """
+    Update a fixed-size reservoir with one accepted halo row.
+
+    Parameters
+    ----------
+    reservoir : list[tuple[float, float, float, float]]
+        In-place reservoir of ``(x, y, z, M200b)`` tuples.
+    sample_size : int
+        Target reservoir capacity.
+    seen_count : int
+        One-based count of accepted halos seen so far in the stream.
+    position_x : float
+        Halo x coordinate in Mpc/h.
+    position_y : float
+        Halo y coordinate in Mpc/h.
+    position_z : float
+        Halo z coordinate in Mpc/h.
+    mass : float
+        Halo ``M200b`` in Msun/h.
+    rng : np.random.Generator
+        Random generator for uniform reservoir updates.
+    """
+    entry = (position_x, position_y, position_z, mass)
+    if seen_count <= sample_size:
+        reservoir.append(entry)
+        return
+    replace_index = int(rng.integers(0, seen_count))
+    if replace_index < sample_size:
+        reservoir[replace_index] = entry
+
+
+def _halos_to_dataframe(halos: list[tuple[float, float, float, float]]) -> pd.DataFrame:
+    """
+    Build a halo DataFrame from ``(x, y, z, M200b)`` tuples.
+
+    Parameters
+    ----------
+    halos : list[tuple[float, float, float, float]]
+        Accepted halo records.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns ``x``, ``y``, ``z``, and ``M200b``.
+    """
+    if not halos:
+        raise ValueError("Cannot build an empty halo DataFrame")
+    array = np.array(halos, dtype=np.float64)
+    return pd.DataFrame(
+        {
+            "x": array[:, 0],
+            "y": array[:, 1],
+            "z": array[:, 2],
+            "M200b": array[:, 3],
+        }
+    )
+
+
 def _collect_rockstar_halos(
     list_path: Path,
     column_map: dict[str, int],
@@ -141,7 +210,8 @@ def _collect_rockstar_halos(
     column_map : dict[str, int]
         Mapping with ``halo_x``, ``halo_y``, ``halo_z``, and ``halo_m200b`` indices.
     max_halos : Optional[int]
-        Stop after this many accepted halos; ``None`` reads until end-of-file.
+        When set, keep a uniform random subset of this size via reservoir
+        sampling over the full catalog stream; ``None`` reads every accepted row.
     central_id_column : Optional[int], optional
         When set, keep only rows with this column equal to ``-1`` (host halos).
 
@@ -163,10 +233,9 @@ def _collect_rockstar_halos(
     z_index = column_map["halo_z"]
     mass_index = column_map["halo_m200b"]
 
-    positions_x: list[float] = []
-    positions_y: list[float] = []
-    positions_z: list[float] = []
-    masses: list[float] = []
+    reservoir: list[tuple[float, float, float, float]] = []
+    rng = np.random.default_rng(ROCKSTAR_RESERVOIR_SEED)
+    seen_count = 0
 
     with opener(path, mode) as handle:
         for line in handle:
@@ -178,24 +247,28 @@ def _collect_rockstar_halos(
             mass = float(columns[mass_index])
             if mass <= 0.0:
                 continue
-            positions_x.append(float(columns[x_index]))
-            positions_y.append(float(columns[y_index]))
-            positions_z.append(float(columns[z_index]))
-            masses.append(mass)
-            if max_halos is not None and len(masses) >= max_halos:
-                break
+            position_x = float(columns[x_index])
+            position_y = float(columns[y_index])
+            position_z = float(columns[z_index])
+            seen_count += 1
+            if max_halos is None:
+                reservoir.append((position_x, position_y, position_z, mass))
+                continue
+            _reservoir_sample_halo(
+                reservoir,
+                max_halos,
+                seen_count,
+                position_x,
+                position_y,
+                position_z,
+                mass,
+                rng,
+            )
 
-    if not masses:
+    if seen_count == 0:
         raise ValueError(f"No halos found in catalog {list_path}")
 
-    return pd.DataFrame(
-        {
-            "x": np.array(positions_x, dtype=np.float64),
-            "y": np.array(positions_y, dtype=np.float64),
-            "z": np.array(positions_z, dtype=np.float64),
-            "M200b": np.array(masses, dtype=np.float64),
-        }
-    )
+    return _halos_to_dataframe(reservoir)
 
 
 def load_unit_sim_training_catalog(
@@ -313,7 +386,8 @@ def load_fastpm_central_target_catalog(
     list_path : Path
         Path to ``out_*.list`` under ``rockstar_out_pm``.
     max_centrals : Optional[int], optional
-        Maximum number of halos to collect; ``None`` reads the full catalog.
+        Maximum number of halos to collect with uniform reservoir sampling;
+        ``None`` reads the full catalog.
 
     Returns
     -------
@@ -347,7 +421,8 @@ def load_unit_rockstar_target_catalog(
     list_path : Path
         Path to a compressed UNIT Rockstar catalog at scale factor ``a = 1``.
     max_centrals : Optional[int], optional
-        Maximum number of halos to collect; ``None`` reads the full catalog.
+        Maximum number of halos to collect with uniform reservoir sampling;
+        ``None`` reads the full catalog.
     central_only : bool, optional
         When True, keep host halos with ``PID == -1`` only.
 

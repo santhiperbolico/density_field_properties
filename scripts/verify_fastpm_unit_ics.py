@@ -106,7 +106,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         type=int,
         default=DEFAULT_N_HALOS,
         help=(
-            "Maximum halos per catalog after central/mass filters. "
+            "Random uniform subsample size per catalog (reservoir sampling). "
             "Ignored when --all-halos is set."
         ),
     )

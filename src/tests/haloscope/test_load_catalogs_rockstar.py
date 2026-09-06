@@ -110,6 +110,19 @@ def test_load_unit_rockstar_target_catalog_can_include_subhalos():
         assert len(frame) == 2
 
 
+def test_collect_rockstar_halos_uses_reservoir_sampling_when_capped():
+    with TemporaryDirectory() as tmpdir:
+        path = f"{tmpdir}/out_8.list"
+        rows = [_compact_row(index + 1, float(index), 0.0, 0.0, 100.0) for index in range(100)]
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("# header\n")
+            handle.write("\n".join(rows) + "\n")
+
+        frame = load_fastpm_central_target_catalog(path, max_centrals=10)
+        assert len(frame) == 10
+        assert frame["x"].mean() > 20.0
+
+
 def test_load_fastpm_central_target_catalog_reads_all_rows_when_uncapped():
     with TemporaryDirectory() as tmpdir:
         path = f"{tmpdir}/out_8.list"
