@@ -21,6 +21,11 @@ DM_MASS_PARTICLE_MSUN_H = 1.2e9
 FASTPM_DM_PARTICLES_PATH = Path(
     "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/output_01/snap_1.0000/1"
 )
+UNIT_DM_PARTICLES_DIR = Path("/data21/UNITSIM/fixedAmp_InvPhase_001/DM_PARTICLES")
+UNIT_DM_PARTICLES_SNAPSHOT_A1 = "128"
+UNIT_DM_PARTICLES_PATH = (
+    UNIT_DM_PARTICLES_DIR / f"dm_particles_0.5_{UNIT_DM_PARTICLES_SNAPSHOT_A1}.bz2"
+)
 FASTPM_SAVED_CIC_DENSITY = Path("output/fast_pm_bigfile/snap_1.0000_density")
 FASTPM_SAVED_CIC_DENSITY_INFO = Path("output/fast_pm_bigfile/snap_1.0000_density_info.txt")
 SIM_SAVED_CIC_DENSITY = Path("output/unit_files/dm_particles_0.5_128_density")
@@ -189,6 +194,18 @@ def default_sim_dm_particles_path() -> Optional[Path]:
         Path to DM positions when configured; ``None`` skips the DM fallback.
     """
     return SIM_DM_PARTICLES_PATH
+
+
+def default_unit_dm_particles_path() -> Path:
+    """
+    Default UNIT DM particle file at scale factor ``a = 1`` on Taurus ``/data21``.
+
+    Returns
+    -------
+    Path
+        Bzip2 text positions file ``dm_particles_0.5_128.bz2``.
+    """
+    return UNIT_DM_PARTICLES_PATH
 
 
 def default_fastpm_list_path() -> Path:

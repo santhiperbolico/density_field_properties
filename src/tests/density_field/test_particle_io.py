@@ -1,3 +1,4 @@
+import bz2
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
 
@@ -47,6 +48,35 @@ def mock_bigfile_positions():
 
     bfile.open.side_effect = open_side_effect
     return bfile, positions
+
+
+@pytest.fixture
+def bz2_particles_file():
+    with TemporaryDirectory() as tmpdirname:
+        path = f"{tmpdirname}/particles.txt.bz2"
+        with bz2.open(path, mode="wt", encoding="utf-8") as handle:
+            np.savetxt(handle, PARTICLE_POSITIONS)
+        yield path
+
+
+def test_detect_bz2_text_file(bz2_particles_file):
+    assert detect_dm_particle_format(bz2_particles_file) == "text"
+
+
+def test_bz2_batches_single_batch(bz2_particles_file):
+    batches = list(iter_dm_particle_batches(bz2_particles_file, batch_size=None))
+    assert len(batches) == 1
+    data, start, end = batches[0]
+    assert start == 0
+    assert end == 4
+    assert np.allclose(data, PARTICLE_POSITIONS)
+
+
+def test_bz2_batches_chunked(bz2_particles_file):
+    batches = list(iter_dm_particle_batches(bz2_particles_file, batch_size=2))
+    assert len(batches) == 2
+    assert np.allclose(batches[0][0], PARTICLE_POSITIONS[:2])
+    assert np.allclose(batches[1][0], PARTICLE_POSITIONS[2:])
 
 
 def test_detect_text_file(text_particles_file):
