@@ -5,25 +5,42 @@ import pytest
 
 from density_field_properties.haloscope.sim_to_fastpm.load_catalogs import (
     _rockstar_data_column_count,
+    _rockstar_header_column_names,
     _rockstar_pid_column_index,
     load_fastpm_central_target_catalog,
     load_unit_rockstar_target_catalog,
 )
 
+FASTPM_HEADER = (
+    "#ID DescID Mvir Vmax Vrms Rvir Rs Np X Y Z VX VY VZ JX JY JZ Spin "
+    "rs_klypin Mvir_all M200b M200c M500c M2500c Xoff Voff spin_bullock "
+    "b_to_a c_to_a A[x] A[y] A[z] b_to_a(500c) c_to_a(500c) A[x](500c) "
+    "A[y](500c) A[z](500c) T/|U| M_pe_Behroozi M_pe_Diemer Halfmass_Radius "
+    "rvmax NFW_chi2 Ixx Iyy Izz Ixy Iyz Izx Ixx(500c) Iyy(500c) Izz(500c) "
+    "Ixy(500c) Iyz(500c) Izx(500c)"
+)
 
-def _compact_row(halo_id, x, y, z, mass):
-    columns = ["0"] * 34
+UNIT_HEADER = (
+    "#ID DescID Mvir Vmax Vrms Rvir Rs Np X Y Z VX VY VZ JX JY JZ Spin "
+    "rs_klypin Mvir_all M200b M200c M500c M2500c Xoff Voff spin_bullock "
+    "b_to_a c_to_a A[x] A[y] A[z] M_pe_Behroozi PID"
+)
+
+
+def _fastpm_row(halo_id, x, y, z, mass):
+    columns = ["0"] * 55
     columns[0] = str(halo_id)
     columns[1] = "-1"
     columns[8] = str(x)
     columns[9] = str(y)
     columns[10] = str(z)
     columns[20] = str(mass)
+    columns[33] = "0.00000"
     return " ".join(columns)
 
 
-def _extended_row(halo_id, pid, x, y, z, mass):
-    columns = ["0"] * 55
+def _unit_row(halo_id, pid, x, y, z, mass):
+    columns = ["0"] * 34
     columns[0] = str(halo_id)
     columns[1] = "-1"
     columns[8] = str(x)
@@ -34,32 +51,46 @@ def _extended_row(halo_id, pid, x, y, z, mass):
     return " ".join(columns)
 
 
-def test_rockstar_pid_column_index_requires_extended_layout():
+def test_rockstar_header_column_names_reads_id_line():
     with TemporaryDirectory() as tmpdir:
-        compact_path = f"{tmpdir}/compact.list"
-        extended_path = f"{tmpdir}/extended.list"
-        with open(compact_path, "w", encoding="utf-8") as handle:
-            handle.write("# header\n")
-            handle.write(_compact_row(1, 10.0, 20.0, 30.0, 100.0) + "\n")
-        with open(extended_path, "w", encoding="utf-8") as handle:
-            handle.write("# header\n")
-            handle.write(_extended_row(1, -1, 10.0, 20.0, 30.0, 100.0) + "\n")
+        path = f"{tmpdir}/out_8.list"
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(FASTPM_HEADER + "\n")
+            handle.write(_fastpm_row(1, 10.0, 20.0, 30.0, 100.0) + "\n")
 
-        assert _rockstar_data_column_count(compact_path) == 34
-        assert _rockstar_pid_column_index(compact_path, 33) is None
-        assert _rockstar_data_column_count(extended_path) == 55
-        assert _rockstar_pid_column_index(extended_path, 33) == 33
+        header = _rockstar_header_column_names(path)
+        assert header is not None
+        assert header[0] == "ID"
+        assert "PID" not in header
+        assert header[33] == "c_to_a(500c)"
+
+
+def test_rockstar_pid_column_index_uses_header():
+    with TemporaryDirectory() as tmpdir:
+        fastpm_path = f"{tmpdir}/out_8.list"
+        unit_path = f"{tmpdir}/out_128p.list"
+        with open(fastpm_path, "w", encoding="utf-8") as handle:
+            handle.write(FASTPM_HEADER + "\n")
+            handle.write(_fastpm_row(1, 10.0, 20.0, 30.0, 100.0) + "\n")
+        with open(unit_path, "w", encoding="utf-8") as handle:
+            handle.write(UNIT_HEADER + "\n")
+            handle.write(_unit_row(1, -1, 10.0, 20.0, 30.0, 100.0) + "\n")
+
+        assert _rockstar_data_column_count(fastpm_path) == 55
+        assert _rockstar_pid_column_index(fastpm_path) is None
+        assert _rockstar_data_column_count(unit_path) == 34
+        assert _rockstar_pid_column_index(unit_path) == 33
 
 
 def test_load_fastpm_central_target_catalog_uses_all_halos_without_pid(caplog):
     with TemporaryDirectory() as tmpdir:
         path = f"{tmpdir}/out_8.list"
         rows = [
-            _compact_row(1, 10.0, 20.0, 30.0, 100.0),
-            _compact_row(2, 40.0, 50.0, 60.0, 200.0),
+            _fastpm_row(1, 10.0, 20.0, 30.0, 100.0),
+            _fastpm_row(2, 40.0, 50.0, 60.0, 200.0),
         ]
         with open(path, "w", encoding="utf-8") as handle:
-            handle.write("# header\n")
+            handle.write(FASTPM_HEADER + "\n")
             handle.write("\n".join(rows) + "\n")
 
         with caplog.at_level(logging.WARNING):
@@ -67,6 +98,17 @@ def test_load_fastpm_central_target_catalog_uses_all_halos_without_pid(caplog):
 
     assert len(frame) == 2
     assert "no PID column" in caplog.text
+
+
+def test_load_fastpm_central_target_catalog_does_not_crash_on_shape_column():
+    with TemporaryDirectory() as tmpdir:
+        path = f"{tmpdir}/out_8.list"
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write(FASTPM_HEADER + "\n")
+            handle.write(_fastpm_row(1, 1.0, 2.0, 3.0, 100.0) + "\n")
+
+        frame = load_fastpm_central_target_catalog(path, max_centrals=10)
+        assert len(frame) == 1
 
 
 @pytest.mark.parametrize(
@@ -80,11 +122,11 @@ def test_load_unit_rockstar_target_catalog_filters_pid(pid_values, expected_coun
     with TemporaryDirectory() as tmpdir:
         path = f"{tmpdir}/out_128p.list"
         rows = [
-            _extended_row(index + 1, pid, float(index), float(index), float(index), 100.0)
+            _unit_row(index + 1, pid, float(index), float(index), float(index), 100.0)
             for index, pid in enumerate(pid_values)
         ]
         with open(path, "w", encoding="utf-8") as handle:
-            handle.write("# header\n")
+            handle.write(UNIT_HEADER + "\n")
             handle.write("\n".join(rows) + "\n")
 
         if expected_count == 0:
@@ -99,11 +141,11 @@ def test_load_unit_rockstar_target_catalog_can_include_subhalos():
     with TemporaryDirectory() as tmpdir:
         path = f"{tmpdir}/out_128p.list"
         rows = [
-            _extended_row(1, -1, 1.0, 2.0, 3.0, 100.0),
-            _extended_row(2, 1, 4.0, 5.0, 6.0, 200.0),
+            _unit_row(1, -1, 1.0, 2.0, 3.0, 100.0),
+            _unit_row(2, 1, 4.0, 5.0, 6.0, 200.0),
         ]
         with open(path, "w", encoding="utf-8") as handle:
-            handle.write("# header\n")
+            handle.write(UNIT_HEADER + "\n")
             handle.write("\n".join(rows) + "\n")
 
         frame = load_unit_rockstar_target_catalog(path, max_centrals=10, central_only=False)
@@ -113,9 +155,9 @@ def test_load_unit_rockstar_target_catalog_can_include_subhalos():
 def test_collect_rockstar_halos_uses_reservoir_sampling_when_capped():
     with TemporaryDirectory() as tmpdir:
         path = f"{tmpdir}/out_8.list"
-        rows = [_compact_row(index + 1, float(index), 0.0, 0.0, 100.0) for index in range(100)]
+        rows = [_fastpm_row(index + 1, float(index), 0.0, 0.0, 100.0) for index in range(100)]
         with open(path, "w", encoding="utf-8") as handle:
-            handle.write("# header\n")
+            handle.write(FASTPM_HEADER + "\n")
             handle.write("\n".join(rows) + "\n")
 
         frame = load_fastpm_central_target_catalog(path, max_centrals=10)
@@ -127,12 +169,12 @@ def test_load_fastpm_central_target_catalog_reads_all_rows_when_uncapped():
     with TemporaryDirectory() as tmpdir:
         path = f"{tmpdir}/out_8.list"
         rows = [
-            _compact_row(1, 1.0, 2.0, 3.0, 100.0),
-            _compact_row(2, 4.0, 5.0, 6.0, 200.0),
-            _compact_row(3, 7.0, 8.0, 9.0, 300.0),
+            _fastpm_row(1, 1.0, 2.0, 3.0, 100.0),
+            _fastpm_row(2, 4.0, 5.0, 6.0, 200.0),
+            _fastpm_row(3, 7.0, 8.0, 9.0, 300.0),
         ]
         with open(path, "w", encoding="utf-8") as handle:
-            handle.write("# header\n")
+            handle.write(FASTPM_HEADER + "\n")
             handle.write("\n".join(rows) + "\n")
 
         frame = load_fastpm_central_target_catalog(path, max_centrals=None)

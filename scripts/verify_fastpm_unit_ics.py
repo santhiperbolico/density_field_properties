@@ -39,7 +39,6 @@ from density_field_properties.haloscope.sim_to_fastpm.assembly_bias import (
 )
 from density_field_properties.haloscope.sim_to_fastpm.config import (
     FASTPM_BOXSIZE_MPC_H,
-    ROCKSTAR_LIST_COLUMNS,
     SIM_BOXSIZE_MPC_H,
     default_fastpm_list_path,
     default_unit_rockstar_list_path,
@@ -282,7 +281,7 @@ def _resolve_halo_selection(fastpm_list: Path) -> tuple[bool, str]:
     tuple[bool, str]
         ``(central_only, filter_label)`` for summary metadata.
     """
-    if _rockstar_pid_column_index(fastpm_list, ROCKSTAR_LIST_COLUMNS["pid"]) is not None:
+    if _rockstar_pid_column_index(fastpm_list) is not None:
         return True, "pid==-1"
     logging.warning(
         "FastPM catalog has no PID column; comparing all positive-mass halos on both sides."

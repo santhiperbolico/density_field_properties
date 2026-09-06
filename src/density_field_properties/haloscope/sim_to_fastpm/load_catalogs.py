@@ -10,7 +10,6 @@ import pandas as pd
 
 from density_field_properties.halo_catalog.rockstar import RockstarCatalogReader
 from density_field_properties.haloscope.sim_to_fastpm.config import (
-    EXTENDED_ROCKSTAR_MIN_COLUMNS,
     ROCKSTAR_LIST_COLUMNS,
     ROCKSTAR_RESERVOIR_SEED,
     UNIT_HLIST_COLUMNS,
@@ -100,30 +99,58 @@ def _rockstar_data_column_count(list_path: Path) -> int:
     return 0
 
 
-def _rockstar_pid_column_index(list_path: Path, pid_index: int) -> Optional[int]:
+def _rockstar_header_column_names(list_path: Path) -> Optional[list[str]]:
     """
-    Return the PID column index when the catalog uses the extended Rockstar layout.
-
-    Compact FastPM ``.list`` files have about 34 columns and no host/subhalo PID field.
-    Extended catalogs with at least ``EXTENDED_ROCKSTAR_MIN_COLUMNS`` columns include
-    ``PID`` at the given index (host halos have ``PID == -1``).
+    Return column names from the first Rockstar header line starting with ``#ID``.
 
     Parameters
     ----------
     list_path : Path
         Path to a Rockstar ``.list`` or ``.list.bz2`` file.
-    pid_index : int
-        Expected 0-based PID column index in extended catalogs.
+
+    Returns
+    -------
+    Optional[list[str]]
+        Header tokens after the leading ``#``, or ``None`` when no ``#ID`` line exists.
+    """
+    path = Path(list_path)
+    opener = bz2.open if path.suffix == ".bz2" else open
+    mode = "rt" if path.suffix == ".bz2" else "r"
+    with opener(path, mode) as handle:
+        for line in handle:
+            if not line.startswith("#"):
+                break
+            tokens = line[1:].strip().split()
+            if tokens and tokens[0] == "ID":
+                return tokens
+    return None
+
+
+def _rockstar_pid_column_index(list_path: Path) -> Optional[int]:
+    """
+    Return the 0-based PID column index when the Rockstar header includes ``PID``.
+
+    Host halos have ``PID == -1``. Catalogs without a ``PID`` column (for example
+    FastPM ``out_*.list`` files with inertia tensors but no merger tree field)
+    return ``None``.
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to a Rockstar ``.list`` or ``.list.bz2`` file.
 
     Returns
     -------
     Optional[int]
-        ``pid_index`` for extended catalogs, otherwise ``None``.
+        Index of ``PID`` in the header, or ``None`` when the column is absent.
     """
-    column_count = _rockstar_data_column_count(list_path)
-    if column_count >= EXTENDED_ROCKSTAR_MIN_COLUMNS:
-        return pid_index
-    return None
+    header = _rockstar_header_column_names(list_path)
+    if header is None:
+        return None
+    try:
+        return header.index("PID")
+    except ValueError:
+        return None
 
 
 def _reservoir_sample_halo(
@@ -377,9 +404,9 @@ def load_fastpm_central_target_catalog(
     """
     Load FastPM halos for IC or enrichment checks.
 
-    When the catalog has the extended Rockstar layout (``>= 55`` columns), keep
-    host halos with ``PID == -1``. Compact FastPM ``.list`` files lack ``PID``;
-    in that case all positive-mass halos are returned and a warning is logged.
+    When the Rockstar header includes ``PID``, keep host halos with ``PID == -1``.
+    FastPM ``out_*.list`` files often lack ``PID``; in that case all positive-mass
+    halos are returned and a warning is logged.
 
     Parameters
     ----------
@@ -394,7 +421,7 @@ def load_fastpm_central_target_catalog(
     pd.DataFrame
         Halos with ``x``, ``y``, ``z``, and ``M200b``.
     """
-    pid_column = _rockstar_pid_column_index(list_path, ROCKSTAR_LIST_COLUMNS["pid"])
+    pid_column = _rockstar_pid_column_index(list_path)
     if pid_column is None:
         logging.warning(
             "FastPM catalog %s has no PID column; loading all halos with M200b > 0.",
@@ -431,7 +458,14 @@ def load_unit_rockstar_target_catalog(
     pd.DataFrame
         Halos with ``x``, ``y``, ``z``, and ``M200b``.
     """
-    central_column = UNIT_ROCKSTAR_LIST_COLUMNS["pid"] if central_only else None
+    central_column = None
+    if central_only:
+        central_column = _rockstar_pid_column_index(list_path)
+        if central_column is None:
+            logging.warning(
+                "UNIT catalog %s has no PID column; loading all halos with M200b > 0.",
+                list_path,
+            )
     return _collect_rockstar_halos(
         list_path,
         UNIT_ROCKSTAR_LIST_COLUMNS,
