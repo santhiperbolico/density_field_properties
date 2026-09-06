@@ -61,11 +61,14 @@ UNIT_HLIST_COLUMNS = {
 ROCKSTAR_LIST_COLUMNS = {
     "halo_id": 0,
     "desc_id": 1,
+    "pid": 33,
     "halo_x": 8,
     "halo_y": 9,
     "halo_z": 10,
     "halo_m200b": 20,
 }
+
+EXTENDED_ROCKSTAR_MIN_COLUMNS = 55
 
 UNIT_ROCKSTAR_LIST_COLUMNS = {
     "halo_id": 0,

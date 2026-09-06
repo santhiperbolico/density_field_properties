@@ -7,6 +7,13 @@ Example (Taurus, subset):
     PYTHONPATH=src python scripts/verify_fastpm_unit_ics.py \\
         --n-halos 100000 --n-grid 128 \\
         --output-dir output/fastpm_unit_seed_check
+
+Example (full FastPM catalog, capped UNIT to the same count is not applied — see
+``--all-halos`` warning in logs):
+
+    PYTHONPATH=src python scripts/verify_fastpm_unit_ics.py \\
+        --all-halos --n-grid 256 \\
+        --output-dir output/fastpm_unit_seed_check_full
 """
 
 import argparse
@@ -32,11 +39,13 @@ from density_field_properties.haloscope.sim_to_fastpm.assembly_bias import (
 )
 from density_field_properties.haloscope.sim_to_fastpm.config import (
     FASTPM_BOXSIZE_MPC_H,
+    ROCKSTAR_LIST_COLUMNS,
     SIM_BOXSIZE_MPC_H,
     default_fastpm_list_path,
     default_unit_rockstar_list_path,
 )
 from density_field_properties.haloscope.sim_to_fastpm.load_catalogs import (
+    _rockstar_pid_column_index,
     load_fastpm_central_target_catalog,
     load_unit_rockstar_target_catalog,
     load_unit_sim_training_catalog,
@@ -96,7 +105,18 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         "--n-halos",
         type=int,
         default=DEFAULT_N_HALOS,
-        help="Maximum central host halos (DescID/PID == -1) per catalog.",
+        help=(
+            "Maximum halos per catalog after central/mass filters. "
+            "Ignored when --all-halos is set."
+        ),
+    )
+    parser.add_argument(
+        "--all-halos",
+        action="store_true",
+        help=(
+            "Read every halo that passes the central/mass filters (no count cap). "
+            "Impractical for the full UNIT Rockstar catalog (~1e8 centrals)."
+        ),
     )
     parser.add_argument(
         "--n-grid",
@@ -129,6 +149,25 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         help="Directory for r_k.csv, r_k.png, and summary.json.",
     )
     return parser.parse_args(argv)
+
+
+def _resolve_n_halos(args: argparse.Namespace) -> int | None:
+    """
+    Resolve the halo count cap from parsed CLI options.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed CLI options.
+
+    Returns
+    -------
+    int or None
+        Maximum halos per catalog, or ``None`` for no cap.
+    """
+    if args.all_halos:
+        return None
+    return args.n_halos
 
 
 def _is_unit_hlist_catalog(path: Path) -> bool:
@@ -229,9 +268,31 @@ def _apply_mass_cut(
     return positions, weights
 
 
+def _resolve_halo_selection(fastpm_list: Path) -> tuple[bool, str]:
+    """
+    Choose a symmetric central-halo filter for both catalogs.
+
+    Parameters
+    ----------
+    fastpm_list : Path
+        FastPM Rockstar catalog path.
+
+    Returns
+    -------
+    tuple[bool, str]
+        ``(central_only, filter_label)`` for summary metadata.
+    """
+    if _rockstar_pid_column_index(fastpm_list, ROCKSTAR_LIST_COLUMNS["pid"]) is not None:
+        return True, "pid==-1"
+    logging.warning(
+        "FastPM catalog has no PID column; comparing all positive-mass halos on both sides."
+    )
+    return False, "none"
+
+
 def _load_fastpm_halos(
     list_path: Path,
-    n_halos: int,
+    n_halos: int | None,
     min_m200b: float,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -241,8 +302,8 @@ def _load_fastpm_halos(
     ----------
     list_path : Path
         FastPM Rockstar catalog path.
-    n_halos : int
-        Maximum number of halos to read.
+    n_halos : int or None
+        Maximum number of halos to read; ``None`` loads the full catalog.
     min_m200b : float
         Minimum ``M200b`` in Msun/h.
 
@@ -259,8 +320,9 @@ def _load_fastpm_halos(
 
 def _load_unit_halos(
     list_path: Path,
-    n_halos: int,
+    n_halos: int | None,
     min_m200b: float,
+    central_only: bool,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Load UNIT halo positions and CIC weights from an hlist or Rockstar catalog.
@@ -269,10 +331,12 @@ def _load_unit_halos(
     ----------
     list_path : Path
         UNIT catalog path.
-    n_halos : int
-        Maximum number of halos to read.
+    n_halos : int or None
+        Maximum number of halos to read; ``None`` loads the full catalog.
     min_m200b : float
         Minimum ``M200b`` in Msun/h.
+    central_only : bool
+        When True, keep UNIT host halos with ``PID == -1`` only.
 
     Returns
     -------
@@ -285,7 +349,11 @@ def _load_unit_halos(
         weights = frame["M200b"].to_numpy(dtype=np.float64)
         return _apply_mass_cut(positions, weights, min_m200b, list_path)
 
-    frame = load_unit_rockstar_target_catalog(list_path, max_centrals=n_halos)
+    frame = load_unit_rockstar_target_catalog(
+        list_path,
+        max_centrals=n_halos,
+        central_only=central_only,
+    )
     positions = frame[["x", "y", "z"]].to_numpy(dtype=np.float64)
     weights = frame["M200b"].to_numpy(dtype=np.float64)
     return _apply_mass_cut(positions, weights, min_m200b, list_path)
@@ -370,6 +438,16 @@ def run_verification(args: argparse.Namespace) -> dict:
     if not args.unit_list.is_file():
         raise FileNotFoundError(f"UNIT catalog not found: {args.unit_list}")
 
+    n_halos = _resolve_n_halos(args)
+    if n_halos is None:
+        logging.warning(
+            "Loading all halos after filters (--all-halos). "
+            "The UNIT Rockstar catalog can exceed memory on a login node; "
+            "prefer Slurm and a subset for UNIT unless you know the size fits."
+        )
+
+    central_only, halo_filter = _resolve_halo_selection(args.fastpm_list)
+
     box_size = _resolve_box_size(args.fastpm_list, args.unit_list, args.box_size)
     fastpm_cosmo = read_rockstar_cosmology_header(str(args.fastpm_list))
     if _is_unit_hlist_catalog(args.unit_list):
@@ -378,13 +456,14 @@ def run_verification(args: argparse.Namespace) -> dict:
         unit_cosmo = read_rockstar_cosmology_header(str(args.unit_list))
     fastpm_pos, fastpm_weights = _load_fastpm_halos(
         args.fastpm_list,
-        args.n_halos,
+        n_halos,
         args.min_m200b,
     )
     unit_pos, unit_weights = _load_unit_halos(
         args.unit_list,
-        args.n_halos,
+        n_halos,
         args.min_m200b,
+        central_only,
     )
 
     logging.info(
@@ -446,8 +525,10 @@ def run_verification(args: argparse.Namespace) -> dict:
     summary = {
         "fastpm_list": str(args.fastpm_list),
         "unit_list": str(args.unit_list),
-        "n_halos_requested": args.n_halos,
-        "central_halos_only": True,
+        "n_halos_requested": n_halos,
+        "all_halos": n_halos is None,
+        "halo_filter": halo_filter,
+        "central_only": central_only,
         "n_halos_fastpm": int(fastpm_pos.shape[0]),
         "n_halos_unit": int(unit_pos.shape[0]),
         "min_m200b_msun_h": args.min_m200b,

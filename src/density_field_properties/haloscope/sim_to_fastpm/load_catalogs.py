@@ -1,6 +1,7 @@
 """Load UNIT consistent-trees and FastPM Rockstar catalogs into pandas."""
 
 import bz2
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -9,6 +10,7 @@ import pandas as pd
 
 from density_field_properties.halo_catalog.rockstar import RockstarCatalogReader
 from density_field_properties.haloscope.sim_to_fastpm.config import (
+    EXTENDED_ROCKSTAR_MIN_COLUMNS,
     ROCKSTAR_LIST_COLUMNS,
     UNIT_HLIST_COLUMNS,
     UNIT_ROCKSTAR_LIST_COLUMNS,
@@ -72,14 +74,65 @@ def _rows_to_frame(rows: list[list[str]], column_map: dict[str, int]) -> pd.Data
     return pd.DataFrame(data)
 
 
-def _collect_rockstar_central_halos(
+def _rockstar_data_column_count(list_path: Path) -> int:
+    """
+    Return the number of whitespace-separated columns in the first data row.
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to a Rockstar ``.list`` or ``.list.bz2`` file.
+
+    Returns
+    -------
+    int
+        Column count of the first data row, or zero if the file has no data rows.
+    """
+    path = Path(list_path)
+    opener = bz2.open if path.suffix == ".bz2" else open
+    mode = "rt" if path.suffix == ".bz2" else "r"
+    with opener(path, mode) as handle:
+        for line in handle:
+            if line.startswith("#"):
+                continue
+            return len(line.split())
+    return 0
+
+
+def _rockstar_pid_column_index(list_path: Path, pid_index: int) -> Optional[int]:
+    """
+    Return the PID column index when the catalog uses the extended Rockstar layout.
+
+    Compact FastPM ``.list`` files have about 34 columns and no host/subhalo PID field.
+    Extended catalogs with at least ``EXTENDED_ROCKSTAR_MIN_COLUMNS`` columns include
+    ``PID`` at the given index (host halos have ``PID == -1``).
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to a Rockstar ``.list`` or ``.list.bz2`` file.
+    pid_index : int
+        Expected 0-based PID column index in extended catalogs.
+
+    Returns
+    -------
+    Optional[int]
+        ``pid_index`` for extended catalogs, otherwise ``None``.
+    """
+    column_count = _rockstar_data_column_count(list_path)
+    if column_count >= EXTENDED_ROCKSTAR_MIN_COLUMNS:
+        return pid_index
+    return None
+
+
+def _collect_rockstar_halos(
     list_path: Path,
     column_map: dict[str, int],
-    central_id_column: int,
-    max_centrals: int,
+    max_halos: Optional[int],
+    central_id_column: Optional[int] = None,
 ) -> pd.DataFrame:
     """
-    Stream a Rockstar catalog and collect central host halos (``central_id == -1``).
+    Stream a Rockstar catalog and collect halo positions and ``M200b``.
 
     Parameters
     ----------
@@ -87,10 +140,10 @@ def _collect_rockstar_central_halos(
         Path to a Rockstar ``.list`` or ``.list.bz2`` file.
     column_map : dict[str, int]
         Mapping with ``halo_x``, ``halo_y``, ``halo_z``, and ``halo_m200b`` indices.
-    central_id_column : int
-        Column index for DescID or PID; host halos have value ``-1``.
-    max_centrals : int
-        Stop after this many central halos with ``M200b > 0``.
+    max_halos : Optional[int]
+        Stop after this many accepted halos; ``None`` reads until end-of-file.
+    central_id_column : Optional[int], optional
+        When set, keep only rows with this column equal to ``-1`` (host halos).
 
     Returns
     -------
@@ -100,10 +153,11 @@ def _collect_rockstar_central_halos(
     Raises
     ------
     ValueError
-        If no central halos are found before end-of-file.
+        If no halos are found before end-of-file.
     """
-    opener = bz2.open if list_path.suffix == ".bz2" else open
-    mode = "rt" if list_path.suffix == ".bz2" else "r"
+    path = Path(list_path)
+    opener = bz2.open if path.suffix == ".bz2" else open
+    mode = "rt" if path.suffix == ".bz2" else "r"
     x_index = column_map["halo_x"]
     y_index = column_map["halo_y"]
     z_index = column_map["halo_z"]
@@ -114,12 +168,12 @@ def _collect_rockstar_central_halos(
     positions_z: list[float] = []
     masses: list[float] = []
 
-    with opener(list_path, mode) as handle:
+    with opener(path, mode) as handle:
         for line in handle:
             if line.startswith("#"):
                 continue
             columns = line.split()
-            if int(columns[central_id_column]) != -1:
+            if central_id_column is not None and int(columns[central_id_column]) != -1:
                 continue
             mass = float(columns[mass_index])
             if mass <= 0.0:
@@ -128,11 +182,11 @@ def _collect_rockstar_central_halos(
             positions_y.append(float(columns[y_index]))
             positions_z.append(float(columns[z_index]))
             masses.append(mass)
-            if len(masses) >= max_centrals:
+            if max_halos is not None and len(masses) >= max_halos:
                 break
 
     if not masses:
-        raise ValueError(f"No central halos found in catalog {list_path}")
+        raise ValueError(f"No halos found in catalog {list_path}")
 
     return pd.DataFrame(
         {
@@ -245,53 +299,67 @@ def load_fastpm_target_catalog(
 
 def load_fastpm_central_target_catalog(
     list_path: Path,
-    max_centrals: int,
+    max_centrals: Optional[int] = None,
 ) -> pd.DataFrame:
     """
-    Load up to ``max_centrals`` FastPM host halos (Rockstar ``DescID == -1``).
+    Load FastPM halos for IC or enrichment checks.
+
+    When the catalog has the extended Rockstar layout (``>= 55`` columns), keep
+    host halos with ``PID == -1``. Compact FastPM ``.list`` files lack ``PID``;
+    in that case all positive-mass halos are returned and a warning is logged.
 
     Parameters
     ----------
     list_path : Path
         Path to ``out_*.list`` under ``rockstar_out_pm``.
-    max_centrals : int
-        Maximum number of central halos to collect.
+    max_centrals : Optional[int], optional
+        Maximum number of halos to collect; ``None`` reads the full catalog.
 
     Returns
     -------
     pd.DataFrame
-        Host halos with ``x``, ``y``, ``z``, and ``M200b``.
+        Halos with ``x``, ``y``, ``z``, and ``M200b``.
     """
-    return _collect_rockstar_central_halos(
+    pid_column = _rockstar_pid_column_index(list_path, ROCKSTAR_LIST_COLUMNS["pid"])
+    if pid_column is None:
+        logging.warning(
+            "FastPM catalog %s has no PID column; loading all halos with M200b > 0.",
+            list_path,
+        )
+    return _collect_rockstar_halos(
         list_path,
         ROCKSTAR_LIST_COLUMNS,
-        central_id_column=ROCKSTAR_LIST_COLUMNS["desc_id"],
-        max_centrals=max_centrals,
+        max_halos=max_centrals,
+        central_id_column=pid_column,
     )
 
 
 def load_unit_rockstar_target_catalog(
     list_path: Path,
-    max_centrals: int,
+    max_centrals: Optional[int] = None,
+    central_only: bool = True,
 ) -> pd.DataFrame:
     """
-    Load up to ``max_centrals`` UNIT host halos from a Rockstar ``out_*p.list.bz2``.
+    Load UNIT halos from a Rockstar ``out_*p.list.bz2``.
 
     Parameters
     ----------
     list_path : Path
         Path to a compressed UNIT Rockstar catalog at scale factor ``a = 1``.
-    max_centrals : int
-        Maximum number of central halos (``PID == -1``) to collect.
+    max_centrals : Optional[int], optional
+        Maximum number of halos to collect; ``None`` reads the full catalog.
+    central_only : bool, optional
+        When True, keep host halos with ``PID == -1`` only.
 
     Returns
     -------
     pd.DataFrame
-        Host halos with ``x``, ``y``, ``z``, and ``M200b``.
+        Halos with ``x``, ``y``, ``z``, and ``M200b``.
     """
-    return _collect_rockstar_central_halos(
+    central_column = UNIT_ROCKSTAR_LIST_COLUMNS["pid"] if central_only else None
+    return _collect_rockstar_halos(
         list_path,
         UNIT_ROCKSTAR_LIST_COLUMNS,
-        central_id_column=UNIT_ROCKSTAR_LIST_COLUMNS["pid"],
-        max_centrals=max_centrals,
+        max_halos=max_centrals,
+        central_id_column=central_column,
     )
