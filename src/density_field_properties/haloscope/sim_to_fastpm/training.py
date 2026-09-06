@@ -1,6 +1,6 @@
 """Mass-bin Haloscope training and FastPM enrichment (schema helpers)."""
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -55,6 +55,7 @@ def holdout_validate_sim_bins(
     random_seed: int = 0,
     min_bin_size: int = 10,
     conditional_model_class=None,
+    input_features: Optional[Sequence[str]] = None,
 ) -> List[Tuple[int, Optional[np.ndarray], Optional[np.ndarray]]]:
     """
     Train Haloscope models per mass bin on a SIM train split and predict on held-out SIM.
@@ -75,6 +76,8 @@ def holdout_validate_sim_bins(
         Skip bins with fewer than this many train or test halos.
     conditional_model_class : type, optional
         Class with ``fit`` and ``predict``; defaults to Haloscope CMVG.
+    input_features : Sequence[str], optional
+        Haloscope conditioning columns; defaults to ``INPUT_FEATURES``.
 
     Returns
     -------
@@ -83,6 +86,9 @@ def holdout_validate_sim_bins(
     """
     if conditional_model_class is None:
         conditional_model_class = ConditionalMultiVariateGaussian
+    if input_features is None:
+        input_features = INPUT_FEATURES
+    feature_columns = list(input_features)
 
     rng = np.random.default_rng(random_seed)
     mask_test = rng.random(len(halos_sim)) < test_fraction
@@ -104,10 +110,10 @@ def holdout_validate_sim_bins(
             continue
         model = conditional_model_class()
         model.fit(
-            train_bin[list(INPUT_FEATURES)].to_numpy(),
+            train_bin[feature_columns].to_numpy(),
             train_bin[list(OUTPUT_FEATURES)].to_numpy(),
         )
-        y_pred = model.predict(test_bin[list(INPUT_FEATURES)].to_numpy())
+        y_pred = model.predict(test_bin[feature_columns].to_numpy())
         y_true = test_bin[list(OUTPUT_FEATURES)].to_numpy()
         results.append((bin_index, y_true, y_pred))
     return results
@@ -120,6 +126,7 @@ def enrich_fastpm_catalog(
     mass_column_fastpm: str,
     min_bin_size: int = 10,
     conditional_model_class=None,
+    input_features: Optional[Sequence[str]] = None,
 ) -> Tuple[pd.DataFrame, Dict[int, object]]:
     """
     Fit Haloscope on full SIM per mass bin and write predictions into ``halos_fastpm``.
@@ -138,6 +145,8 @@ def enrich_fastpm_catalog(
         Skip bins with too few SIM halos or no FastPM halos.
     conditional_model_class : type, optional
         Haloscope model class.
+    input_features : Sequence[str], optional
+        Haloscope conditioning columns; defaults to ``INPUT_FEATURES``.
 
     Returns
     -------
@@ -146,6 +155,9 @@ def enrich_fastpm_catalog(
     """
     if conditional_model_class is None:
         conditional_model_class = ConditionalMultiVariateGaussian
+    if input_features is None:
+        input_features = INPUT_FEATURES
+    feature_columns = list(input_features)
 
     enriched = halos_fastpm.copy()
     for feature in OUTPUT_FEATURES:
@@ -165,10 +177,10 @@ def enrich_fastpm_catalog(
             continue
         model = conditional_model_class()
         model.fit(
-            sim_bin[list(INPUT_FEATURES)].to_numpy(),
+            sim_bin[feature_columns].to_numpy(),
             sim_bin[list(OUTPUT_FEATURES)].to_numpy(),
         )
-        y_pred = model.predict(enriched.loc[fastpm_mask, list(INPUT_FEATURES)].to_numpy())
+        y_pred = model.predict(enriched.loc[fastpm_mask, feature_columns].to_numpy())
         for column_index, column_name in enumerate(OUTPUT_FEATURES):
             enriched.loc[fastpm_mask, column_name] = y_pred[:, column_index]
         models[bin_index] = model

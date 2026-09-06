@@ -143,6 +143,13 @@ def rockstar_halo_catalog_to_dataframe(
     )
     if catalog.m200b_position is not None:
         frame["id"] = catalog.halo_id.astype(np.int64)
+    if ROCKSTAR_LIST_COLUMNS.get("t_over_u") is not None:
+        t_over_u_index = ROCKSTAR_LIST_COLUMNS["t_over_u"]
+        rows = _read_whitespace_table_lines(path, max_data_rows=n_lines)
+        frame["t_over_u"] = np.array(
+            [row[t_over_u_index] for row in rows],
+            dtype=np.float64,
+        )
     return frame
 
 

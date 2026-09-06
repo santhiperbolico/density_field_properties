@@ -8,6 +8,7 @@ Plantillas `sbatch` para el cluster. Todas asumen `cd` al directorio del repo y 
 |---------|-----------|
 | `density_field/` | Construcción del campo de densidad CIC (`main_density_field_cic.py`) |
 | `tidal_tensor/` | Tensor de marea y descriptores tidales: `main_tidal_tensor_field_fastpm.slurm`, `main_tidal_tensor_field_unit.slurm` |
+| `sim_to_fastpm/` | Haloscope SIM→FastPM: `main_sim_to_fastpm_haloscope.slurm`, `main_sim_to_fastpm_haloscope_tidal.slurm`, `main_sim_to_fastpm_haloscope_tidal_smoke.slurm` |
 | `pipelines/` | Pipeline completo: CIC + tensor de marea |
 
 ## Convenciones
@@ -24,6 +25,8 @@ sbatch slurm/density_field/main_density_field_cic.slurm
 sbatch slurm/tidal_tensor/main_tidal_tensor_field_fastpm.slurm
 sbatch slurm/tidal_tensor/main_tidal_tensor_field_unit.slurm
 sbatch slurm/pipelines/full_pipeline.slurm
+sbatch slurm/sim_to_fastpm/main_sim_to_fastpm_haloscope_tidal_smoke.slurm
+sbatch slurm/sim_to_fastpm/main_sim_to_fastpm_haloscope_tidal.slurm
 ```
 
 Tras el fix de la issue #12, regenerar descriptores tidales:

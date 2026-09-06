@@ -26,7 +26,22 @@ SIM_DM_PARTICLES_PATH = Path("output/unit_files/dm_particles_0.5_128")
 ASSEMBLY_BIAS_DM_BATCH_SIZE: Optional[int] = None
 
 INPUT_FEATURES = ("env",)
+TIDAL_INPUT_FEATURES = ("t_over_u", "tidal_anisotropy")
 OUTPUT_FEATURES = ("cv", "Spin", "ca", "ba")
+
+FASTPM_TIDAL_DESCRIPTORS_DIR = Path("output/fast_pm_bigfile/tidal_anisotropy")
+UNIT_TIDAL_DESCRIPTORS_DIR = Path("output/unit_files/tidal_anisotropy")
+TIDAL_DENSITY_N_GRID = 512
+
+ROCKSTAR_T_OVER_U_COLUMN = 37
+UNIT_T_OVER_U_COLUMN = 56
+
+OUTPUT_DIR_TIDAL = Path("output/sim_to_fastpm_haloscope_tidal")
+OUTPUT_DIR_TIDAL_SMOKE = Path("output/sim_to_fastpm_haloscope_tidal_smoke")
+ENRICHED_TIDAL_PARQUET_NAME = "fastpm_out_8_haloscope_tidal_enriched.parquet"
+
+MAX_DESCRIPTOR_BATCH_FILES = None
+SMOKE_MAX_DESCRIPTOR_BATCH_FILES = 1
 
 MAX_SIM_HALOS = None
 MAX_FASTPM_HALOS = None
@@ -53,6 +68,7 @@ UNIT_HLIST_COLUMNS = {
     "M200b": 39,
     "ba": 46,
     "ca": 47,
+    "t_over_u": UNIT_T_OVER_U_COLUMN,
 }
 
 ROCKSTAR_LIST_COLUMNS = {
@@ -61,6 +77,7 @@ ROCKSTAR_LIST_COLUMNS = {
     "halo_y": 9,
     "halo_z": 10,
     "halo_m200b": 20,
+    "t_over_u": ROCKSTAR_T_OVER_U_COLUMN,
 }
 
 
@@ -113,6 +130,47 @@ def min_bin_size_for_run(quick_run: bool = QUICK_RUN) -> int:
         Minimum bin population.
     """
     return SMOKE_MIN_BIN_SIZE if quick_run else PRODUCTION_MIN_BIN_SIZE
+
+
+def max_descriptor_batch_files_for_run(quick_run: bool = QUICK_RUN) -> Optional[int]:
+    """
+    Cap on tidal descriptor batch files per simulation.
+
+    Parameters
+    ----------
+    quick_run : bool, optional
+        If True, use ``SMOKE_MAX_DESCRIPTOR_BATCH_FILES``; else ``MAX_DESCRIPTOR_BATCH_FILES``.
+
+    Returns
+    -------
+    Optional[int]
+        Maximum batch files to load, or ``None`` for all batches.
+    """
+    return SMOKE_MAX_DESCRIPTOR_BATCH_FILES if quick_run else MAX_DESCRIPTOR_BATCH_FILES
+
+
+def default_unit_tidal_descriptors_dir() -> Path:
+    """
+    Relative path to precomputed UNIT tidal descriptor batches.
+
+    Returns
+    -------
+    Path
+        Directory under ``output/unit_files/tidal_anisotropy/``.
+    """
+    return UNIT_TIDAL_DESCRIPTORS_DIR
+
+
+def default_fastpm_tidal_descriptors_dir() -> Path:
+    """
+    Relative path to precomputed FastPM tidal descriptor batches.
+
+    Returns
+    -------
+    Path
+        Directory under ``output/fast_pm_bigfile/tidal_anisotropy/``.
+    """
+    return FASTPM_TIDAL_DESCRIPTORS_DIR
 
 
 def default_sim_hlist_path() -> Path:
