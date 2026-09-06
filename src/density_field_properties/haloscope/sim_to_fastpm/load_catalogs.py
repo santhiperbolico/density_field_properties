@@ -11,6 +11,7 @@ from density_field_properties.halo_catalog.rockstar import RockstarCatalogReader
 from density_field_properties.haloscope.sim_to_fastpm.config import (
     ROCKSTAR_LIST_COLUMNS,
     UNIT_HLIST_COLUMNS,
+    UNIT_ROCKSTAR_LIST_COLUMNS,
 )
 
 
@@ -69,6 +70,78 @@ def _rows_to_frame(rows: list[list[str]], column_map: dict[str, int]) -> pd.Data
         else:
             data[name] = np.array(values, dtype=np.float64)
     return pd.DataFrame(data)
+
+
+def _collect_rockstar_central_halos(
+    list_path: Path,
+    column_map: dict[str, int],
+    central_id_column: int,
+    max_centrals: int,
+) -> pd.DataFrame:
+    """
+    Stream a Rockstar catalog and collect central host halos (``central_id == -1``).
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to a Rockstar ``.list`` or ``.list.bz2`` file.
+    column_map : dict[str, int]
+        Mapping with ``halo_x``, ``halo_y``, ``halo_z``, and ``halo_m200b`` indices.
+    central_id_column : int
+        Column index for DescID or PID; host halos have value ``-1``.
+    max_centrals : int
+        Stop after this many central halos with ``M200b > 0``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns ``x``, ``y``, ``z``, and ``M200b``.
+
+    Raises
+    ------
+    ValueError
+        If no central halos are found before end-of-file.
+    """
+    opener = bz2.open if list_path.suffix == ".bz2" else open
+    mode = "rt" if list_path.suffix == ".bz2" else "r"
+    x_index = column_map["halo_x"]
+    y_index = column_map["halo_y"]
+    z_index = column_map["halo_z"]
+    mass_index = column_map["halo_m200b"]
+
+    positions_x: list[float] = []
+    positions_y: list[float] = []
+    positions_z: list[float] = []
+    masses: list[float] = []
+
+    with opener(list_path, mode) as handle:
+        for line in handle:
+            if line.startswith("#"):
+                continue
+            columns = line.split()
+            if int(columns[central_id_column]) != -1:
+                continue
+            mass = float(columns[mass_index])
+            if mass <= 0.0:
+                continue
+            positions_x.append(float(columns[x_index]))
+            positions_y.append(float(columns[y_index]))
+            positions_z.append(float(columns[z_index]))
+            masses.append(mass)
+            if len(masses) >= max_centrals:
+                break
+
+    if not masses:
+        raise ValueError(f"No central halos found in catalog {list_path}")
+
+    return pd.DataFrame(
+        {
+            "x": np.array(positions_x, dtype=np.float64),
+            "y": np.array(positions_y, dtype=np.float64),
+            "z": np.array(positions_z, dtype=np.float64),
+            "M200b": np.array(masses, dtype=np.float64),
+        }
+    )
 
 
 def load_unit_sim_training_catalog(
@@ -168,3 +241,57 @@ def load_fastpm_target_catalog(
     frame = rockstar_halo_catalog_to_dataframe(list_path, n_lines=max_halos)
     frame = frame[frame["M200b"] > 0].reset_index(drop=True)
     return frame
+
+
+def load_fastpm_central_target_catalog(
+    list_path: Path,
+    max_centrals: int,
+) -> pd.DataFrame:
+    """
+    Load up to ``max_centrals`` FastPM host halos (Rockstar ``DescID == -1``).
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to ``out_*.list`` under ``rockstar_out_pm``.
+    max_centrals : int
+        Maximum number of central halos to collect.
+
+    Returns
+    -------
+    pd.DataFrame
+        Host halos with ``x``, ``y``, ``z``, and ``M200b``.
+    """
+    return _collect_rockstar_central_halos(
+        list_path,
+        ROCKSTAR_LIST_COLUMNS,
+        central_id_column=ROCKSTAR_LIST_COLUMNS["desc_id"],
+        max_centrals=max_centrals,
+    )
+
+
+def load_unit_rockstar_target_catalog(
+    list_path: Path,
+    max_centrals: int,
+) -> pd.DataFrame:
+    """
+    Load up to ``max_centrals`` UNIT host halos from a Rockstar ``out_*p.list.bz2``.
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to a compressed UNIT Rockstar catalog at scale factor ``a = 1``.
+    max_centrals : int
+        Maximum number of central halos (``PID == -1``) to collect.
+
+    Returns
+    -------
+    pd.DataFrame
+        Host halos with ``x``, ``y``, ``z``, and ``M200b``.
+    """
+    return _collect_rockstar_central_halos(
+        list_path,
+        UNIT_ROCKSTAR_LIST_COLUMNS,
+        central_id_column=UNIT_ROCKSTAR_LIST_COLUMNS["pid"],
+        max_centrals=max_centrals,
+    )

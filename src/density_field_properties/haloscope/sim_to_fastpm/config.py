@@ -11,6 +11,9 @@ FASTPM_ROCKSTAR_DIR = Path("/data21/users/mruiz/fastpm_MN5/fastpm_tfm/rockstar_o
 FASTPM_LIST_NAME = "out_8.list"
 FASTPM_BOXSIZE_MPC_H = 1000.0
 
+UNIT_ROCKSTAR_DIR = Path("/data21/UNITSIM/fixedAmp_InvPhase_001/ROCKSTAR")
+UNIT_ROCKSTAR_LIST_NAME = "out_128p.list.bz2"
+
 ENV_RADIUS_MPC_H = 5.0
 CALIBRATE_MASS = True
 
@@ -57,6 +60,16 @@ UNIT_HLIST_COLUMNS = {
 
 ROCKSTAR_LIST_COLUMNS = {
     "halo_id": 0,
+    "desc_id": 1,
+    "halo_x": 8,
+    "halo_y": 9,
+    "halo_z": 10,
+    "halo_m200b": 20,
+}
+
+UNIT_ROCKSTAR_LIST_COLUMNS = {
+    "halo_id": 0,
+    "pid": 33,
     "halo_x": 8,
     "halo_y": 9,
     "halo_z": 10,
@@ -185,3 +198,15 @@ def default_fastpm_list_path() -> Path:
         Path to ``FASTPM_LIST_NAME`` under ``FASTPM_ROCKSTAR_DIR``.
     """
     return FASTPM_ROCKSTAR_DIR / FASTPM_LIST_NAME
+
+
+def default_unit_rockstar_list_path() -> Path:
+    """
+    Default absolute path to the UNIT Rockstar catalog at ``a = 1``.
+
+    Returns
+    -------
+    Path
+        Path to ``out_128p.list.bz2`` under ``UNIT_ROCKSTAR_DIR``.
+    """
+    return UNIT_ROCKSTAR_DIR / UNIT_ROCKSTAR_LIST_NAME

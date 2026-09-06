@@ -8,6 +8,7 @@ Plantillas `sbatch` para el cluster. Todas asumen `cd` al directorio del repo y 
 |---------|-----------|
 | `density_field/` | Construcción del campo de densidad CIC (`main_density_field_cic.py`) |
 | `tidal_tensor/` | Cálculo del tensor de marea y descriptores de entorno (`main_tidal_tensor_field.py`) |
+| `verify_fastpm_unit_ics/` | Verificación IC FastPM vs UNIT vía r(k) (`main_verify_fastpm_unit_ics.slurm`) |
 | `pipelines/` | Pipeline completo: CIC + tensor de marea |
 
 ## Convenciones
@@ -23,4 +24,10 @@ Plantillas `sbatch` para el cluster. Todas asumen `cd` al directorio del repo y 
 sbatch slurm/density_field/main_density_field_cic.slurm
 sbatch slurm/tidal_tensor/main_tidal_tensor_field.slurm
 sbatch slurm/pipelines/full_pipeline.slurm
+sbatch slurm/verify_fastpm_unit_ics/main_verify_fastpm_unit_ics.slurm
 ```
+
+Tras el fix de la issue #12, regenerar descriptores tidales:
+
+- **FastPM:** `main_tidal_tensor_field_fastpm.slurm` — reutiliza `tidal_tensor/` (`--read_from_path`), borra y reescribe `tidal_anisotropy/`.
+- **UNIT:** `main_tidal_tensor_field_unit.slurm` — pipeline completo (tensor + descriptores). Descomprime `hlist_1.00000.list.bz2` en `output/unit_files/` la primera vez (~100 GB descomprimido).
