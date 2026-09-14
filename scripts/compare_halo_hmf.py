@@ -29,9 +29,7 @@ from density_field_properties.haloscope.sim_to_fastpm.config import (
 )
 
 DEFAULT_OUTPUT_DIR = Path("output/halo_hmf_a1")
-DEFAULT_FASTPM_FOF = Path(
-    "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/output_01/fof_1.0000"
-)
+DEFAULT_FASTPM_FOF = Path("/data21/users/mruiz/fastpm_MN5/fastpm_tfm/output_01/fof_1.0000")
 DEFAULT_FASTPM_ROCKSTAR_PM = Path(
     "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/rockstar_out_pm/out_8.list"
 )
@@ -42,6 +40,7 @@ DEFAULT_UNIT = default_unit_rockstar_list_path()
 DEFAULT_LOG_MASS_MIN = 10.0
 DEFAULT_LOG_MASS_MAX = 14.5
 DEFAULT_N_BINS = 20
+
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
     """

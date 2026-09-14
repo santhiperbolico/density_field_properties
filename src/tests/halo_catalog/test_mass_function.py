@@ -47,7 +47,7 @@ def test_compute_halo_mass_function_normalization():
         log_mass_bin_edges=edges,
     )
 
-    volume = box_size ** 3
+    volume = box_size**3
     assert result.n_halos == 100
     assert result.counts[0] == pytest.approx(100.0)
     assert result.log_mass_bin_centers[0] == pytest.approx(10.5)

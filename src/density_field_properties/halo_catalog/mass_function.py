@@ -138,7 +138,7 @@ def compute_halo_mass_function(
     log_mass_bin_centers = 0.5 * (log_mass_bin_edges[:-1] + log_mass_bin_edges[1:])
 
     delta_log10 = np.diff(log_mass_bin_edges)
-    volume = box_size_mpc_h ** 3
+    volume = box_size_mpc_h**3
     with np.errstate(divide="ignore", invalid="ignore"):
         dn_dlog10_m = counts / (delta_log10 * volume)
         dn_dln_m = dn_dlog10_m / LOG10
