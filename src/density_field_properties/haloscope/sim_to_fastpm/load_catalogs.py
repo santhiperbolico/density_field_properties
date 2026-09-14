@@ -1,6 +1,7 @@
 """Load UNIT consistent-trees and FastPM Rockstar catalogs into pandas."""
 
 import bz2
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -10,7 +11,9 @@ import pandas as pd
 from density_field_properties.halo_catalog.rockstar import RockstarCatalogReader
 from density_field_properties.haloscope.sim_to_fastpm.config import (
     ROCKSTAR_LIST_COLUMNS,
+    ROCKSTAR_RESERVOIR_SEED,
     UNIT_HLIST_COLUMNS,
+    UNIT_ROCKSTAR_LIST_COLUMNS,
 )
 
 
@@ -69,6 +72,230 @@ def _rows_to_frame(rows: list[list[str]], column_map: dict[str, int]) -> pd.Data
         else:
             data[name] = np.array(values, dtype=np.float64)
     return pd.DataFrame(data)
+
+
+def _rockstar_data_column_count(list_path: Path) -> int:
+    """
+    Return the number of whitespace-separated columns in the first data row.
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to a Rockstar ``.list`` or ``.list.bz2`` file.
+
+    Returns
+    -------
+    int
+        Column count of the first data row, or zero if the file has no data rows.
+    """
+    path = Path(list_path)
+    opener = bz2.open if path.suffix == ".bz2" else open
+    mode = "rt" if path.suffix == ".bz2" else "r"
+    with opener(path, mode) as handle:
+        for line in handle:
+            if line.startswith("#"):
+                continue
+            return len(line.split())
+    return 0
+
+
+def _rockstar_header_column_names(list_path: Path) -> Optional[list[str]]:
+    """
+    Return column names from the first Rockstar header line starting with ``#ID``.
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to a Rockstar ``.list`` or ``.list.bz2`` file.
+
+    Returns
+    -------
+    Optional[list[str]]
+        Header tokens after the leading ``#``, or ``None`` when no ``#ID`` line exists.
+    """
+    path = Path(list_path)
+    opener = bz2.open if path.suffix == ".bz2" else open
+    mode = "rt" if path.suffix == ".bz2" else "r"
+    with opener(path, mode) as handle:
+        for line in handle:
+            if not line.startswith("#"):
+                break
+            tokens = line[1:].strip().split()
+            if tokens and tokens[0] == "ID":
+                return tokens
+    return None
+
+
+def _rockstar_pid_column_index(list_path: Path) -> Optional[int]:
+    """
+    Return the 0-based PID column index when the Rockstar header includes ``PID``.
+
+    Host halos have ``PID == -1``. Catalogs without a ``PID`` column (for example
+    FastPM ``out_*.list`` files with inertia tensors but no merger tree field)
+    return ``None``.
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to a Rockstar ``.list`` or ``.list.bz2`` file.
+
+    Returns
+    -------
+    Optional[int]
+        Index of ``PID`` in the header, or ``None`` when the column is absent.
+    """
+    header = _rockstar_header_column_names(list_path)
+    if header is None:
+        return None
+    try:
+        return header.index("PID")
+    except ValueError:
+        return None
+
+
+def _reservoir_sample_halo(
+    reservoir: list[tuple[float, float, float, float]],
+    sample_size: int,
+    seen_count: int,
+    position_x: float,
+    position_y: float,
+    position_z: float,
+    mass: float,
+    rng: np.random.Generator,
+) -> None:
+    """
+    Update a fixed-size reservoir with one accepted halo row.
+
+    Parameters
+    ----------
+    reservoir : list[tuple[float, float, float, float]]
+        In-place reservoir of ``(x, y, z, M200b)`` tuples.
+    sample_size : int
+        Target reservoir capacity.
+    seen_count : int
+        One-based count of accepted halos seen so far in the stream.
+    position_x : float
+        Halo x coordinate in Mpc/h.
+    position_y : float
+        Halo y coordinate in Mpc/h.
+    position_z : float
+        Halo z coordinate in Mpc/h.
+    mass : float
+        Halo ``M200b`` in Msun/h.
+    rng : np.random.Generator
+        Random generator for uniform reservoir updates.
+    """
+    entry = (position_x, position_y, position_z, mass)
+    if seen_count <= sample_size:
+        reservoir.append(entry)
+        return
+    replace_index = int(rng.integers(0, seen_count))
+    if replace_index < sample_size:
+        reservoir[replace_index] = entry
+
+
+def _halos_to_dataframe(halos: list[tuple[float, float, float, float]]) -> pd.DataFrame:
+    """
+    Build a halo DataFrame from ``(x, y, z, M200b)`` tuples.
+
+    Parameters
+    ----------
+    halos : list[tuple[float, float, float, float]]
+        Accepted halo records.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns ``x``, ``y``, ``z``, and ``M200b``.
+    """
+    if not halos:
+        raise ValueError("Cannot build an empty halo DataFrame")
+    array = np.array(halos, dtype=np.float64)
+    return pd.DataFrame(
+        {
+            "x": array[:, 0],
+            "y": array[:, 1],
+            "z": array[:, 2],
+            "M200b": array[:, 3],
+        }
+    )
+
+
+def _collect_rockstar_halos(
+    list_path: Path,
+    column_map: dict[str, int],
+    max_halos: Optional[int],
+    central_id_column: Optional[int] = None,
+) -> pd.DataFrame:
+    """
+    Stream a Rockstar catalog and collect halo positions and ``M200b``.
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to a Rockstar ``.list`` or ``.list.bz2`` file.
+    column_map : dict[str, int]
+        Mapping with ``halo_x``, ``halo_y``, ``halo_z``, and ``halo_m200b`` indices.
+    max_halos : Optional[int]
+        When set, keep a uniform random subset of this size via reservoir
+        sampling over the full catalog stream; ``None`` reads every accepted row.
+    central_id_column : Optional[int], optional
+        When set, keep only rows with this column equal to ``-1`` (host halos).
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns ``x``, ``y``, ``z``, and ``M200b``.
+
+    Raises
+    ------
+    ValueError
+        If no halos are found before end-of-file.
+    """
+    path = Path(list_path)
+    opener = bz2.open if path.suffix == ".bz2" else open
+    mode = "rt" if path.suffix == ".bz2" else "r"
+    x_index = column_map["halo_x"]
+    y_index = column_map["halo_y"]
+    z_index = column_map["halo_z"]
+    mass_index = column_map["halo_m200b"]
+
+    reservoir: list[tuple[float, float, float, float]] = []
+    rng = np.random.default_rng(ROCKSTAR_RESERVOIR_SEED)
+    seen_count = 0
+
+    with opener(path, mode) as handle:
+        for line in handle:
+            if line.startswith("#"):
+                continue
+            columns = line.split()
+            if central_id_column is not None and int(columns[central_id_column]) != -1:
+                continue
+            mass = float(columns[mass_index])
+            if mass <= 0.0:
+                continue
+            position_x = float(columns[x_index])
+            position_y = float(columns[y_index])
+            position_z = float(columns[z_index])
+            seen_count += 1
+            if max_halos is None:
+                reservoir.append((position_x, position_y, position_z, mass))
+                continue
+            _reservoir_sample_halo(
+                reservoir,
+                max_halos,
+                seen_count,
+                position_x,
+                position_y,
+                position_z,
+                mass,
+                rng,
+            )
+
+    if seen_count == 0:
+        raise ValueError(f"No halos found in catalog {list_path}")
+
+    return _halos_to_dataframe(reservoir)
 
 
 def load_unit_sim_training_catalog(
@@ -168,3 +395,80 @@ def load_fastpm_target_catalog(
     frame = rockstar_halo_catalog_to_dataframe(list_path, n_lines=max_halos)
     frame = frame[frame["M200b"] > 0].reset_index(drop=True)
     return frame
+
+
+def load_fastpm_central_target_catalog(
+    list_path: Path,
+    max_centrals: Optional[int] = None,
+) -> pd.DataFrame:
+    """
+    Load FastPM halos for IC or enrichment checks.
+
+    When the Rockstar header includes ``PID``, keep host halos with ``PID == -1``.
+    FastPM ``out_*.list`` files often lack ``PID``; in that case all positive-mass
+    halos are returned and a warning is logged.
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to ``out_*.list`` under ``rockstar_out_pm``.
+    max_centrals : Optional[int], optional
+        Maximum number of halos to collect with uniform reservoir sampling;
+        ``None`` reads the full catalog.
+
+    Returns
+    -------
+    pd.DataFrame
+        Halos with ``x``, ``y``, ``z``, and ``M200b``.
+    """
+    pid_column = _rockstar_pid_column_index(list_path)
+    if pid_column is None:
+        logging.warning(
+            "FastPM catalog %s has no PID column; loading all halos with M200b > 0.",
+            list_path,
+        )
+    return _collect_rockstar_halos(
+        list_path,
+        ROCKSTAR_LIST_COLUMNS,
+        max_halos=max_centrals,
+        central_id_column=pid_column,
+    )
+
+
+def load_unit_rockstar_target_catalog(
+    list_path: Path,
+    max_centrals: Optional[int] = None,
+    central_only: bool = True,
+) -> pd.DataFrame:
+    """
+    Load UNIT halos from a Rockstar ``out_*p.list.bz2``.
+
+    Parameters
+    ----------
+    list_path : Path
+        Path to a compressed UNIT Rockstar catalog at scale factor ``a = 1``.
+    max_centrals : Optional[int], optional
+        Maximum number of halos to collect with uniform reservoir sampling;
+        ``None`` reads the full catalog.
+    central_only : bool, optional
+        When True, keep host halos with ``PID == -1`` only.
+
+    Returns
+    -------
+    pd.DataFrame
+        Halos with ``x``, ``y``, ``z``, and ``M200b``.
+    """
+    central_column = None
+    if central_only:
+        central_column = _rockstar_pid_column_index(list_path)
+        if central_column is None:
+            logging.warning(
+                "UNIT catalog %s has no PID column; loading all halos with M200b > 0.",
+                list_path,
+            )
+    return _collect_rockstar_halos(
+        list_path,
+        UNIT_ROCKSTAR_LIST_COLUMNS,
+        max_halos=max_centrals,
+        central_id_column=central_column,
+    )

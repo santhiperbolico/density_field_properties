@@ -1,5 +1,8 @@
+import bz2
 import logging
-from typing import Generator, Optional, Tuple
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Generator, Iterator, Optional, TextIO, Tuple
 
 import numpy as np
 
@@ -20,6 +23,61 @@ _ROCKSTAR_COSMOLOGY_ALIASES = {
     "omega_lambda": frozenset({"ol", "omega_l", "omega_lambda"}),
     "h0": frozenset({"h", "h0"}),
 }
+
+
+@contextmanager
+def _open_text_catalog(path: str) -> Iterator[TextIO]:
+    """
+    Open a Rockstar catalog as a text stream, including ``*.list.bz2`` files.
+
+    Parameters
+    ----------
+    path : str
+        Catalog path.
+
+    Yields
+    ------
+    Iterator[str]
+        Open text handle for line iteration.
+    """
+    if Path(path).suffix == ".bz2":
+        with bz2.open(path, "rt") as handle:
+            yield handle
+    else:
+        with open(path, "r") as handle:
+            yield handle
+
+
+def _parse_box_size_from_header_line(line: str) -> Optional[float]:
+    """
+    Parse a Rockstar header line for the box side length in Mpc/h.
+
+    Parameters
+    ----------
+    line : str
+        Header line starting with ``#``.
+
+    Returns
+    -------
+    Optional[float]
+        Box size in Mpc/h, or ``None`` if not present.
+    """
+    if not line.startswith("#"):
+        return None
+    body = line[1:]
+    for segment in body.split(";"):
+        segment = segment.strip()
+        if "=" in segment:
+            key, value = segment.split("=", 1)
+        elif ":" in segment:
+            key, value = segment.split(":", 1)
+        else:
+            continue
+        normalized = key.strip().replace(" ", "_").lower()
+        if normalized in {"box_size", "boxsize", "box"}:
+            token = value.strip().split()[0]
+            return float(token)
+    return None
 
 
 def _normalize_rockstar_cosmology_field(raw_key: str) -> Optional[str]:
@@ -74,6 +132,30 @@ def _parse_rockstar_hash_line_cosmology(line: str) -> dict[str, float]:
     return parameters
 
 
+def read_rockstar_box_size_header(path: str) -> Optional[float]:
+    """
+    Parse the Rockstar ``Box size`` header value in Mpc/h.
+
+    Parameters
+    ----------
+    path : str
+        Path to a Rockstar ``.list`` catalog.
+
+    Returns
+    -------
+    Optional[float]
+        Box side length in Mpc/h, or ``None`` if not found.
+    """
+    with _open_text_catalog(path) as handle:
+        for line in handle:
+            if not line.startswith("#"):
+                break
+            box_size = _parse_box_size_from_header_line(line)
+            if box_size is not None:
+                return box_size
+    return None
+
+
 def read_rockstar_cosmology_header(path: str) -> Optional[Cosmology]:
     """
     Reads a Rockstar cosmology header file and extracts cosmological parameters.
@@ -97,8 +179,8 @@ def read_rockstar_cosmology_header(path: str) -> Optional[Cosmology]:
     """
     merged = {}
 
-    with open(path, "r") as f:
-        for line in f:
+    with _open_text_catalog(path) as handle:
+        for line in handle:
             if not line.startswith("#"):
                 break
             merged.update(_parse_rockstar_hash_line_cosmology(line))
@@ -179,8 +261,8 @@ class RockstarCatalogReader(HaloCatalogReader):
         if isinstance(cosmology, Cosmology):
             positions = (0, 1, 2, 3, 4, 5)
 
-        with open(path, "r") as f:
-            for line in f:
+        with _open_text_catalog(path) as handle:
+            for line in handle:
                 if line.startswith("#"):
                     continue
                 cols = line.split()
@@ -197,6 +279,8 @@ class RockstarCatalogReader(HaloCatalogReader):
                     row = (halo_id, halo_x, halo_y, halo_z, m200b, rg)
 
                 results.append(row)
+                if n_lines is not None and len(results) >= n_lines:
+                    break
 
         results = HaloCatalogData(np.array(results), *positions)
         return results

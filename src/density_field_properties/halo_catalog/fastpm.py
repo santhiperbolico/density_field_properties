@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any, Generator, Optional, Tuple
 
 import numpy as np
@@ -21,6 +22,41 @@ def read_fastpm_cosmology_header(header: dict[str, Any]) -> Cosmology:
         omega_lambda=float(header["OmegaLambda"][0]),
         h0=float(header["HubbleParam"][0]),
     )
+
+
+def _resolve_fastpm_catalog_layout(path: str) -> tuple[BigFile, str]:
+    """
+    Resolve BigFile root and halo block prefix for a FastPM catalog path.
+
+    Parameters
+    ----------
+    path : str
+        Either a self-contained FOF directory with an internal ``Header`` block,
+        or a ``parent/subfolder`` path where ``Header`` lives in ``parent``.
+
+    Returns
+    -------
+    tuple[BigFile, str]
+        Open BigFile handle and block prefix (for example ``LL-0.200`` or ``000``).
+
+    Raises
+    ------
+    ValueError
+        If no halo blocks with ``ID`` and ``Length`` can be found.
+    """
+    catalog_path = Path(path)
+    if (catalog_path / "Header").is_dir():
+        bfile = BigFile(str(catalog_path))
+        for child in sorted(catalog_path.iterdir()):
+            if not child.is_dir() or child.name == "Header":
+                continue
+            if (child / "ID").is_dir() and (child / "Length").is_dir():
+                return bfile, child.name
+        raise ValueError(f"No FastPM halo blocks found under {path}")
+
+    main_folder = path.split("/")[-1]
+    complete_path = "/".join(path.split("/")[:-1])
+    return BigFile(complete_path), main_folder
 
 
 class FastPMCatalogReader(HaloCatalogReader):
@@ -64,9 +100,7 @@ class FastPMCatalogReader(HaloCatalogReader):
             radius-based metrics for specific cosmologies.
         """
 
-        main_folder = path.split("/")[-1]
-        complete_path = "/".join(path.split("/")[:-1])
-        bfile = BigFile(complete_path)
+        bfile, block_prefix = _resolve_fastpm_catalog_layout(path)
         cosmology = read_fastpm_cosmology_header(bfile["Header"].attrs)
         mp = float(bfile["Header"].attrs["UnitMass_in_g"][0]) / MSUN_G / cosmology.h0
 
@@ -75,12 +109,12 @@ class FastPMCatalogReader(HaloCatalogReader):
             positions = (0, 1, 2, 3, 4, 5)
 
         if n_lines is None:
-            n_lines = bfile.open(f"{main_folder}/{halo_id_block}").size
-        halo_id = bfile.open(f"{main_folder}/{halo_id_block}")[:n_lines]
-        halo_particles = bfile.open(f"{main_folder}/{halo_length_block}")[:n_lines]
-        halo_x = bfile.open(f"{main_folder}/{halo_position_block}")[:n_lines][:, 0]
-        halo_y = bfile.open(f"{main_folder}/{halo_position_block}")[:n_lines][:, 1]
-        halo_z = bfile.open(f"{main_folder}/{halo_position_block}")[:n_lines][:, 2]
+            n_lines = bfile.open(f"{block_prefix}/{halo_id_block}").size
+        halo_id = bfile.open(f"{block_prefix}/{halo_id_block}")[:n_lines]
+        halo_particles = bfile.open(f"{block_prefix}/{halo_length_block}")[:n_lines]
+        halo_x = bfile.open(f"{block_prefix}/{halo_position_block}")[:n_lines][:, 0]
+        halo_y = bfile.open(f"{block_prefix}/{halo_position_block}")[:n_lines][:, 1]
+        halo_z = bfile.open(f"{block_prefix}/{halo_position_block}")[:n_lines][:, 2]
 
         mfof = halo_particles * mp
 
@@ -143,9 +177,7 @@ class FastPMCatalogReader(HaloCatalogReader):
             - `int`: The next offset index after the batch.
         """
 
-        main_folder = path.split("/")[-1]
-        complete_path = "/".join(path.split("/")[:-1])
-        bfile = BigFile(complete_path)
+        bfile, block_prefix = _resolve_fastpm_catalog_layout(path)
         cosmology = read_fastpm_cosmology_header(bfile["Header"].attrs)
         mp = float(bfile["Header"].attrs["UnitMass_in_g"][0]) / MSUN_G / cosmology.h0
 
@@ -154,23 +186,23 @@ class FastPMCatalogReader(HaloCatalogReader):
             positions = (0, 1, 2, 3, 4, 5)
 
         if n_lines is None:
-            n_lines = bfile.open(f"{main_folder}/{halo_id_block}").size
+            n_lines = bfile.open(f"{block_prefix}/{halo_id_block}").size
 
         batch_readed = 0
         while batch_readed < n_lines:
             next_offset = min(batch_size, n_lines - batch_readed) + batch_readed
 
-            halo_id = bfile.open(f"{main_folder}/{halo_id_block}")[batch_readed:next_offset]
-            halo_particles = bfile.open(f"{main_folder}/{halo_length_block}")[
+            halo_id = bfile.open(f"{block_prefix}/{halo_id_block}")[batch_readed:next_offset]
+            halo_particles = bfile.open(f"{block_prefix}/{halo_length_block}")[
                 batch_readed:next_offset
             ]
-            halo_x = bfile.open(f"{main_folder}/{halo_position_block}")[batch_readed:next_offset][
+            halo_x = bfile.open(f"{block_prefix}/{halo_position_block}")[batch_readed:next_offset][
                 :, 0
             ]
-            halo_y = bfile.open(f"{main_folder}/{halo_position_block}")[batch_readed:next_offset][
+            halo_y = bfile.open(f"{block_prefix}/{halo_position_block}")[batch_readed:next_offset][
                 :, 1
             ]
-            halo_z = bfile.open(f"{main_folder}/{halo_position_block}")[batch_readed:next_offset][
+            halo_z = bfile.open(f"{block_prefix}/{halo_position_block}")[batch_readed:next_offset][
                 :, 2
             ]
             mfof = halo_particles * mp

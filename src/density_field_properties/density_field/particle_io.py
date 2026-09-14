@@ -1,8 +1,11 @@
+import bz2
 import os
-from typing import Generator, Optional, Tuple
+from typing import IO, Generator, Optional, Tuple, Union
 
 import numpy as np
 from bigfile import BigFile
+
+TextParticleHandle = Union[IO[str], bz2.BZ2File]
 
 
 def _fastpm_block_paths(path: str) -> Tuple[str, str]:
@@ -94,6 +97,25 @@ def _as_position_batch(data: np.ndarray) -> np.ndarray:
     return data[:, :3]
 
 
+def _open_text_particle_file(path: str) -> TextParticleHandle:
+    """
+    Open a whitespace-separated DM positions file, including ``.bz2`` archives.
+
+    Parameters
+    ----------
+    path : str
+        Path to a text particle file.
+
+    Returns
+    -------
+    TextParticleHandle
+        Open text handle positioned at the start of the file.
+    """
+    if path.endswith(".bz2"):
+        return bz2.open(path, mode="rt", encoding="utf-8")
+    return open(path, encoding="utf-8")
+
+
 def _count_text_particle_lines(path: str) -> int:
     """
     Count newline-separated particle records in a text positions file.
@@ -108,7 +130,7 @@ def _count_text_particle_lines(path: str) -> int:
     int
         Number of lines in the file.
     """
-    with open(path, encoding="utf-8") as handle:
+    with _open_text_particle_file(path) as handle:
         return sum(1 for _ in handle)
 
 
@@ -131,7 +153,8 @@ def _iter_text_batches(
         Positions ``(n, 3)``, start index (inclusive), end index (exclusive).
     """
     if batch_size is None:
-        data = np.loadtxt(path)
+        with _open_text_particle_file(path) as handle:
+            data = np.loadtxt(handle)
         positions = _as_position_batch(data)
         n_rows = positions.shape[0]
         if n_rows > 0:
@@ -142,7 +165,8 @@ def _iter_text_batches(
     n_total = _count_text_particle_lines(path)
     while skip < n_total:
         max_rows = min(batch_size, n_total - skip)
-        data = np.loadtxt(path, skiprows=skip, max_rows=max_rows)
+        with _open_text_particle_file(path) as handle:
+            data = np.loadtxt(handle, skiprows=skip, max_rows=max_rows)
         positions = _as_position_batch(data)
         n_rows = positions.shape[0]
         if n_rows == 0:

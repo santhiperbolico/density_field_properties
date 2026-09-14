@@ -11,12 +11,20 @@ FASTPM_ROCKSTAR_DIR = Path("/data21/users/mruiz/fastpm_MN5/fastpm_tfm/rockstar_o
 FASTPM_LIST_NAME = "out_8.list"
 FASTPM_BOXSIZE_MPC_H = 1000.0
 
+UNIT_ROCKSTAR_DIR = Path("/data21/UNITSIM/fixedAmp_InvPhase_001/ROCKSTAR")
+UNIT_ROCKSTAR_LIST_NAME = "out_128p.list.bz2"
+
 ENV_RADIUS_MPC_H = 5.0
 CALIBRATE_MASS = True
 
 DM_MASS_PARTICLE_MSUN_H = 1.2e9
 FASTPM_DM_PARTICLES_PATH = Path(
     "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/output_01/snap_1.0000/1"
+)
+UNIT_DM_PARTICLES_DIR = Path("/data21/UNITSIM/fixedAmp_InvPhase_001/DM_PARTICLES")
+UNIT_DM_PARTICLES_SNAPSHOT_A1 = "128"
+UNIT_DM_PARTICLES_PATH = (
+    UNIT_DM_PARTICLES_DIR / f"dm_particles_0.5_{UNIT_DM_PARTICLES_SNAPSHOT_A1}.bz2"
 )
 FASTPM_SAVED_CIC_DENSITY = Path("output/fast_pm_bigfile/snap_1.0000_density")
 FASTPM_SAVED_CIC_DENSITY_INFO = Path("output/fast_pm_bigfile/snap_1.0000_density_info.txt")
@@ -57,6 +65,19 @@ UNIT_HLIST_COLUMNS = {
 
 ROCKSTAR_LIST_COLUMNS = {
     "halo_id": 0,
+    "desc_id": 1,
+    "pid": 33,
+    "halo_x": 8,
+    "halo_y": 9,
+    "halo_z": 10,
+    "halo_m200b": 20,
+}
+
+ROCKSTAR_RESERVOIR_SEED = 42
+
+UNIT_ROCKSTAR_LIST_COLUMNS = {
+    "halo_id": 0,
+    "pid": 33,
     "halo_x": 8,
     "halo_y": 9,
     "halo_z": 10,
@@ -175,6 +196,18 @@ def default_sim_dm_particles_path() -> Optional[Path]:
     return SIM_DM_PARTICLES_PATH
 
 
+def default_unit_dm_particles_path() -> Path:
+    """
+    Default UNIT DM particle file at scale factor ``a = 1`` on Taurus ``/data21``.
+
+    Returns
+    -------
+    Path
+        Bzip2 text positions file ``dm_particles_0.5_128.bz2``.
+    """
+    return UNIT_DM_PARTICLES_PATH
+
+
 def default_fastpm_list_path() -> Path:
     """
     Default absolute path to the FastPM Rockstar catalog file.
@@ -185,3 +218,15 @@ def default_fastpm_list_path() -> Path:
         Path to ``FASTPM_LIST_NAME`` under ``FASTPM_ROCKSTAR_DIR``.
     """
     return FASTPM_ROCKSTAR_DIR / FASTPM_LIST_NAME
+
+
+def default_unit_rockstar_list_path() -> Path:
+    """
+    Default absolute path to the UNIT Rockstar catalog at ``a = 1``.
+
+    Returns
+    -------
+    Path
+        Path to ``out_128p.list.bz2`` under ``UNIT_ROCKSTAR_DIR``.
+    """
+    return UNIT_ROCKSTAR_DIR / UNIT_ROCKSTAR_LIST_NAME
