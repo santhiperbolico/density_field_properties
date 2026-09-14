@@ -7,7 +7,7 @@
 #SBATCH --output=output/fastpm_unit_ics_dm.out
 #SBATCH --partition=all
 #SBATCH --exclude=epi
-#SBATCH --time=08:00:00
+#SBATCH --time=16:00:00
 
 set -euo pipefail
 cd /home/arnes/santiago_arranz/density_field_properties
