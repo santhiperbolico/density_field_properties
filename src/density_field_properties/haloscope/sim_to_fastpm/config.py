@@ -7,14 +7,20 @@ SIM_ROCKSTAR_ROOT = Path("/data5/UNITSIM/fixedAmp_InvPhase_001/ROCKSTAR/outputs"
 SIM_HLIST_RELATIVE = Path("hlists/hlist_1.00000.list.bz2")
 SIM_BOXSIZE_MPC_H = 1000.0
 
-FASTPM_ROCKSTAR_DIR = Path("/data21/users/mruiz/fastpm_MN5/fastpm_tfm/rockstar_out_pm")
+FASTPM_ROCKSTAR_DIR = Path("/data21/users/mruiz/fastpm_MN5/fastpm_tfm/rockstar_out_nbody")
 FASTPM_LIST_NAME = "out_8.list"
 FASTPM_BOXSIZE_MPC_H = 1000.0
+
+UNIT_SIM_ROOT = Path("/data21/UNITSIM/fixedAmp_InvPhase_001")
+UNIT_ROCKSTAR_DIR = UNIT_SIM_ROOT / "ROCKSTAR"
+UNIT_ROCKSTAR_LIST_NAME = "out_128p.list.bz2"
 
 ENV_RADIUS_MPC_H = 5.0
 CALIBRATE_MASS = True
 
 DM_MASS_PARTICLE_MSUN_H = 1.2e9
+MIN_M200B_TIMES_MP = 20.0
+MIN_M200B_MSUN_H = MIN_M200B_TIMES_MP * DM_MASS_PARTICLE_MSUN_H
 FASTPM_DM_PARTICLES_PATH = Path(
     "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/output_01/snap_1.0000/1"
 )

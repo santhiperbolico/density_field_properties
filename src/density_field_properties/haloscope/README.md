@@ -18,6 +18,13 @@ from density_field_properties.haloscope import ConditionalMultiVariateGaussian
 
 `sim_to_fastpm/` contains the UNIT → FastPM enrichment pipeline used here.
 
+**Phase 0 decisions and full pipeline plan** (in `phd-agents-toolkit`):
+
+- [`notes/planes-cursor/2026-09-17-haloscope-phase0-decisions.md`](../../../../phd-agents-toolkit/notes/planes-cursor/2026-09-17-haloscope-phase0-decisions.md)
+- [`notes/planes-cursor/2026-09-17-haloscope-pipeline-implementacion.md`](../../../../phd-agents-toolkit/notes/planes-cursor/2026-09-17-haloscope-pipeline-implementacion.md)
+
+**First production config:** [`config/haloscope_run.yaml`](../../../config/haloscope_run.yaml)
+
 ## Alternative: pip dependency
 
 To avoid vendoring the file, add under `pip:` in `environment.yml`:

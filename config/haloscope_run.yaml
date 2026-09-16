@@ -1,0 +1,51 @@
+# Haloscope SIM → FastPM — first production run (Phase 0 closed 2026-09-17)
+# See phd-agents-toolkit/notes/planes-cursor/2026-09-17-haloscope-phase0-decisions.md
+
+run_name: haloscope_production_v1
+
+sim:
+  root: /data21/UNITSIM/fixedAmp_InvPhase_001
+  hlist: /data5/UNITSIM/fixedAmp_InvPhase_001/ROCKSTAR/outputs/hlists/hlist_1.00000.list.bz2
+  box_size_mpc_h: 1000.0
+  scale_factor: 1.0
+  redshift: 0.0
+
+fastpm:
+  rockstar_dir: /data21/users/mruiz/fastpm_MN5/fastpm_tfm/rockstar_out_nbody
+  list_name: out_8.list
+  box_size_mpc_h: 1000.0
+  scale_factor: 1.0
+  redshift: 0.0
+
+sample:
+  central_only_sim: true
+  central_only_fastpm: false
+  min_m200b_times_mp: 20.0
+  dm_mass_particle_msun_h: 1.2e9
+
+haloscope:
+  calibrate_mass: true
+  mass_calibration_method: abundance_matching
+  input_features:
+    - env
+  output_features:
+    - cv
+    - Spin
+    - ca
+    - ba
+  env_radius_mpc_h: 5.0
+  min_bin_size: 10
+
+output:
+  dir: output/sim_to_fastpm_haloscope
+  enriched_parquet_name: fastpm_out_8_haloscope_enriched.parquet
+
+preflight:
+  ic_check:
+    script: scripts/verify_fastpm_unit_ics.py
+    tracer: dm
+    verdict: compatible
+    summary: output/fastpm_unit_seed_check_dm/summary.json
+  hmf_check:
+    summary: output/halo_hmf_a1_central_min20mp/summary.json
+    figure: output/halo_hmf_a1_central_min20mp/hmf_comparison.png
