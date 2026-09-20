@@ -9,6 +9,12 @@ from density_field_properties.pipelines.config import (
     DEFAULT_ENV_SMOKE_CONFIG,
     HaloscopeEnrichmentConfig,
     load_haloscope_enrichment_config,
+    resolve_fastpm_boxsize_mpc_h,
+    resolve_sim_boxsize_mpc_h,
+)
+from density_field_properties.pipelines.run_defaults import (
+    FASTPM_BOXSIZE_MPC_H,
+    SIM_BOXSIZE_MPC_H,
 )
 
 
@@ -29,6 +35,9 @@ def test_load_env_smoke_config_from_repo_defaults(tmp_path):
     assert config.run_assembly_bias_plot is False
     assert config.sim_hlist_path.is_absolute()
     assert config.fastpm_list_path.is_absolute()
+    assert config.box_size_mpc_h is None
+    assert resolve_sim_boxsize_mpc_h(config) == SIM_BOXSIZE_MPC_H
+    assert resolve_fastpm_boxsize_mpc_h(config) == FASTPM_BOXSIZE_MPC_H
 
 
 def test_load_config_from_custom_json(tmp_path):
@@ -46,6 +55,7 @@ def test_load_config_from_custom_json(tmp_path):
                     "output_dir": str(tmp_path / "out"),
                 },
                 "sample": {
+                    "box_size_mpc_h": 200,
                     "max_sim_halos": 123,
                     "max_fastpm_halos": 456,
                     "max_descriptor_batch_files": 2,
@@ -80,6 +90,9 @@ def test_load_config_from_custom_json(tmp_path):
     assert config.fastpm_list_path == tmp_path / "fastpm.list"
     assert config.repo_root == tmp_path
     assert config.output_dir == tmp_path / "out"
+    assert config.box_size_mpc_h == 200
+    assert resolve_sim_boxsize_mpc_h(config) == 200
+    assert resolve_fastpm_boxsize_mpc_h(config) == 200
     assert config.max_sim_halos == 123
     assert config.max_fastpm_halos == 456
     assert config.max_descriptor_batch_files == 2
