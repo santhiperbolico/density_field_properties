@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from density_field_properties.haloscope.sim_to_fastpm.config import OUTPUT_FEATURES
+from density_field_properties.pipelines.run_defaults import OUTPUT_FEATURES
 from density_field_properties.utils.plotting import compare_2d_contours
 
 

@@ -7,16 +7,16 @@ import time
 import numpy as np
 from default_params import L_BOX, MP, NGRID
 
-from density_field_properties.density_field.cic_deposit import (
+from density_field_properties.environment_properties.cic.cic_deposit import (
     get_delta_density,
     load_density_field_cic,
 )
-from density_field_properties.density_field.utils import DensityFieldInfo
-from density_field_properties.halo_environment_descriptors.tidal_anisotropy import (
+from density_field_properties.environment_properties.cic.utils import DensityFieldInfo
+from density_field_properties.environment_properties.tidal_anisotropy import (
     tidal_anisotropy_and_overdensity_from_halo_calaog,
 )
+from density_field_properties.environment_properties.tidal_tensor import TidalTensorArray
 from density_field_properties.read_data.halos.registry import get_halo_catalog_reader
-from density_field_properties.tidal_tensor import TidalTensorArray
 
 RMIN = 1000 / 4096
 RMAX = 4

@@ -6,7 +6,7 @@ import time
 
 from default_params import BATCH_SIZE, L_BOX, MP, NGRID
 
-from density_field_properties.density_field.cic_deposit import (
+from density_field_properties.environment_properties.cic.cic_deposit import (
     density_field_cic_main,
     save_density_field_cic,
 )

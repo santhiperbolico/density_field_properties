@@ -4,13 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from density_field_properties.haloscope.sim_to_fastpm.config import (
-    default_fastpm_list_path,
-    default_sim_hlist_path,
-)
 from density_field_properties.pipelines.config import HaloscopeEnrichmentConfig
 from density_field_properties.pipelines.haloscope_enrichment import (
     run_haloscope_enrichment_pipeline,
+)
+from density_field_properties.pipelines.run_defaults import (
+    default_fastpm_list_path,
+    default_sim_hlist_path,
 )
 
 

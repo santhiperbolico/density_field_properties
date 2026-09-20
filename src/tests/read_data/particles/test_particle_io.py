@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from density_field_properties.density_field.particle_io import (
+from density_field_properties.read_data.particles import (
     detect_dm_particle_format,
     iter_dm_particle_batches,
 )
@@ -65,7 +65,10 @@ def test_detect_fastpm_bigfile_directory(mock_bigfile_positions):
         patch("os.path.isdir", return_value=True),
         patch("os.path.isfile", return_value=False),
         patch("os.path.exists", return_value=True),
-        patch("density_field_properties.density_field.particle_io.BigFile", return_value=bfile),
+        patch(
+            "density_field_properties.read_data.particles.particle_io.BigFile",
+            return_value=bfile,
+        ),
     ):
         assert detect_dm_particle_format(block_path) == "fastpm_bigfile"
 
@@ -78,7 +81,7 @@ def test_detect_directory_without_bigfile_raises():
         patch("os.path.isfile", return_value=False),
         patch("os.path.isdir", return_value=True),
         patch(
-            "density_field_properties.density_field.particle_io.BigFile",
+            "density_field_properties.read_data.particles.particle_io.BigFile",
             side_effect=OSError("not a bigfile"),
         ),
     ):
@@ -118,7 +121,10 @@ def test_bigfile_batches(mock_bigfile_positions):
         patch("os.path.exists", return_value=True),
         patch("os.path.isfile", return_value=False),
         patch("os.path.isdir", return_value=True),
-        patch("density_field_properties.density_field.particle_io.BigFile", return_value=bfile),
+        patch(
+            "density_field_properties.read_data.particles.particle_io.BigFile",
+            return_value=bfile,
+        ),
     ):
         batches = list(iter_dm_particle_batches(block_path, batch_size=2))
     assert len(batches) == 2
@@ -134,7 +140,10 @@ def test_bigfile_batches_single_when_batch_size_none(mock_bigfile_positions):
         patch("os.path.exists", return_value=True),
         patch("os.path.isfile", return_value=False),
         patch("os.path.isdir", return_value=True),
-        patch("density_field_properties.density_field.particle_io.BigFile", return_value=bfile),
+        patch(
+            "density_field_properties.read_data.particles.particle_io.BigFile",
+            return_value=bfile,
+        ),
     ):
         batches = list(iter_dm_particle_batches(block_path, batch_size=None))
     assert len(batches) == 1

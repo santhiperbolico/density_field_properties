@@ -7,7 +7,6 @@ import numpy as np
 from numpy.fft import irfftn, rfftn
 from scipy import stats
 
-from density_field_properties.density_field.particle_io import detect_dm_particle_format
 from density_field_properties.environment_properties.cic.cic_deposit import (
     delta_field_from_dm_particles,
     delta_field_from_saved_cic,
@@ -15,6 +14,7 @@ from density_field_properties.environment_properties.cic.cic_deposit import (
     weighted_field_cic,
 )
 from density_field_properties.environment_properties.fourier.fourrier_transformations import kgrid
+from density_field_properties.read_data.particles import detect_dm_particle_format
 from density_field_properties.utils.stats import central_68_scatter
 
 

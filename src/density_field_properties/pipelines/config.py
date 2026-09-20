@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Sequence
 
-from density_field_properties.haloscope.sim_to_fastpm.config import (
+from density_field_properties.pipelines.run_defaults import (
     ENRICHED_PARQUET_NAME,
     ENRICHED_TIDAL_PARQUET_NAME,
     INPUT_FEATURES,

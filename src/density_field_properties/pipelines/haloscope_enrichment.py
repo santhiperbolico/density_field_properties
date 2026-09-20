@@ -12,7 +12,8 @@ from density_field_properties.haloscope import (
     enrich_fastpm_catalog,
     holdout_validate_sim_bins,
 )
-from density_field_properties.haloscope.sim_to_fastpm.config import (
+from density_field_properties.pipelines.config import HaloscopeEnrichmentConfig
+from density_field_properties.pipelines.run_defaults import (
     CALIBRATE_MASS,
     ENV_RADIUS_MPC_H,
     FASTPM_BOXSIZE_MPC_H,
@@ -22,11 +23,10 @@ from density_field_properties.haloscope.sim_to_fastpm.config import (
     default_fastpm_tidal_descriptors_dir,
     default_unit_tidal_descriptors_dir,
 )
-from density_field_properties.haloscope.sim_to_fastpm.load_catalogs import (
+from density_field_properties.preprocessing.catalog_loaders import (
     load_fastpm_target_catalog,
     load_unit_sim_training_catalog,
 )
-from density_field_properties.pipelines.config import HaloscopeEnrichmentConfig
 from density_field_properties.preprocessing.context import build_preprocessing_context
 from density_field_properties.preprocessing.feature_table import build_feature_tables
 from density_field_properties.preprocessing.input_features.tidal_anisotropy import (

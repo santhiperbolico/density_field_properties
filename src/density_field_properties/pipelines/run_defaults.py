@@ -1,4 +1,4 @@
-"""Paths and hyperparameters for SIM-to-FastPM Haloscope."""
+"""Default cluster paths and Haloscope run constants for pipeline orchestration."""
 
 from pathlib import Path
 from typing import Optional
@@ -39,9 +39,6 @@ FASTPM_TIDAL_DESCRIPTORS_DIR = Path("output/fast_pm_bigfile/tidal_anisotropy")
 UNIT_TIDAL_DESCRIPTORS_DIR = Path("output/unit_files/tidal_anisotropy")
 TIDAL_DENSITY_N_GRID = 512
 
-ROCKSTAR_T_OVER_U_COLUMN = 37
-UNIT_T_OVER_U_COLUMN = 56
-
 OUTPUT_DIR_TIDAL = Path("output/sim_to_fastpm_haloscope_tidal")
 OUTPUT_DIR_TIDAL_SMOKE = Path("output/sim_to_fastpm_haloscope_tidal_smoke")
 ENRICHED_TIDAL_PARQUET_NAME = "fastpm_out_8_haloscope_tidal_enriched.parquet"
@@ -61,30 +58,6 @@ PRODUCTION_MIN_BIN_SIZE = 10
 
 OUTPUT_DIR = Path("output/sim_to_fastpm_haloscope")
 ENRICHED_PARQUET_NAME = "fastpm_out_8_haloscope_enriched.parquet"
-
-UNIT_HLIST_COLUMNS = {
-    "id": 1,
-    "pid": 5,
-    "Rvir": 11,
-    "x": 17,
-    "y": 18,
-    "z": 19,
-    "Spin": 26,
-    "Rs_Klypin": 37,
-    "M200b": 39,
-    "ba": 46,
-    "ca": 47,
-    "t_over_u": UNIT_T_OVER_U_COLUMN,
-}
-
-ROCKSTAR_LIST_COLUMNS = {
-    "halo_id": 0,
-    "halo_x": 8,
-    "halo_y": 9,
-    "halo_z": 10,
-    "halo_m200b": 20,
-    "t_over_u": ROCKSTAR_T_OVER_U_COLUMN,
-}
 
 
 def max_sim_halos_for_run(quick_run: bool = QUICK_RUN) -> Optional[int]:

@@ -7,7 +7,7 @@ from typing import Optional, Sequence
 import numpy as np
 import pandas as pd
 
-from density_field_properties.density_field.utils import get_grid_cell
+from density_field_properties.environment_properties.cic.utils import get_grid_cell
 from density_field_properties.preprocessing.context import SimulationRunContext
 from density_field_properties.preprocessing.input_features.base import InputFeatureAttacher
 

@@ -2,7 +2,30 @@ import os
 from typing import Generator, Optional, Tuple
 
 import numpy as np
-from bigfile import BigFile
+
+try:
+    from bigfile import BigFile
+except ImportError:
+    BigFile = None
+
+
+def _require_bigfile():
+    """
+    Return the BigFile class or raise when the optional dependency is missing.
+
+    Returns
+    -------
+    type
+        BigFile class from the ``bigfile`` package.
+
+    Raises
+    ------
+    ImportError
+        If ``bigfile`` is not installed.
+    """
+    if BigFile is None:
+        raise ImportError("bigfile is required for FastPM BigFile particle I/O")
+    return BigFile
 
 
 def _fastpm_block_paths(path: str) -> Tuple[str, str]:
@@ -54,8 +77,9 @@ def detect_dm_particle_format(path: str) -> str:
         raise ValueError(f"Unsupported DM particle path: {path}")
 
     main_folder, complete_path = _fastpm_block_paths(normalized)
+    bigfile_cls = _require_bigfile()
     try:
-        bfile = BigFile(complete_path)
+        bfile = bigfile_cls(complete_path)
     except OSError as exc:
         raise ValueError(
             f"Directory does not look like a FastPM BigFile block path: {path}"
@@ -170,7 +194,7 @@ def _iter_fastpm_bigfile_batches(
         Positions ``(n, 3)``, start index (inclusive), end index (exclusive).
     """
     main_folder, complete_path = _fastpm_block_paths(os.path.normpath(path))
-    bfile = BigFile(complete_path)
+    bfile = _require_bigfile()(complete_path)
     position_data = bfile.open(f"{main_folder}/Position")
     # position_data.size is equal to position_data[:].shape[0]
     n_total = position_data.size

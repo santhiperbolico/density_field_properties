@@ -1,7 +1,6 @@
-"""Import checks for Haloscope and SIM-to-FastPM modules (no cluster data)."""
+"""Import checks for Haloscope and pipeline modules (no cluster data)."""
 
 import importlib
-import warnings
 
 import pytest
 
@@ -21,19 +20,7 @@ import pytest
             ],
         ),
         (
-            "density_field_properties.haloscope.bins",
-            ["default_mass_bin_edges", "mask_mass_bin"],
-        ),
-        (
-            "density_field_properties.haloscope.training",
-            ["fit_models", "holdout_validate_sim_bins"],
-        ),
-        (
-            "density_field_properties.haloscope.predict",
-            ["predict_models", "enrich_fastpm_catalog"],
-        ),
-        (
-            "density_field_properties.haloscope.sim_to_fastpm.config",
+            "density_field_properties.pipelines.run_defaults",
             [
                 "default_sim_hlist_path",
                 "default_fastpm_list_path",
@@ -41,7 +28,7 @@ import pytest
             ],
         ),
         (
-            "density_field_properties.haloscope.sim_to_fastpm.load_catalogs",
+            "density_field_properties.preprocessing.catalog_loaders",
             ["load_unit_sim_training_catalog", "load_fastpm_target_catalog"],
         ),
         (
@@ -63,32 +50,17 @@ def test_haloscope_public_symbols_are_importable(module_path, symbol_names):
         assert hasattr(module, name), f"{module_path} missing {name}"
 
 
-def test_legacy_sim_to_fastpm_training_shim_emits_deprecation_warning():
-    """
-    Legacy training imports must warn but remain callable.
-    """
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        module = importlib.import_module(
-            "density_field_properties.haloscope.sim_to_fastpm.training"
-        )
-        assert any(
-            issubclass(item.category, DeprecationWarning) for item in caught
-        ), "Expected DeprecationWarning from legacy sim_to_fastpm.training shim"
-        assert callable(module.enrich_fastpm_catalog)
-
-
 def test_run_sim_to_fastpm_haloscope_script_main_imports():
     """
     Mirror ``scripts/run_sim_to_fastpm_haloscope.py`` deferred imports.
     """
     pytest.importorskip("bigfile")
-    from density_field_properties.haloscope.sim_to_fastpm.config import (
-        default_fastpm_list_path,
-        default_sim_hlist_path,
-    )
     from density_field_properties.pipelines.haloscope_enrichment import (
         run_haloscope_enrichment_pipeline,
+    )
+    from density_field_properties.pipelines.run_defaults import (
+        default_fastpm_list_path,
+        default_sim_hlist_path,
     )
 
     assert callable(default_sim_hlist_path)

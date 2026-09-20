@@ -1,4 +1,4 @@
-"""Load UNIT consistent-trees and FastPM Rockstar catalogs into pandas."""
+"""Load HR/LR halo catalogs and apply preprocessing filters."""
 
 import bz2
 from pathlib import Path
@@ -7,13 +7,13 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from density_field_properties.haloscope.sim_to_fastpm.config import (
-    ROCKSTAR_LIST_COLUMNS,
-    UNIT_HLIST_COLUMNS,
-)
 from density_field_properties.preprocessing.filters import (
     filter_host_training_halos,
     filter_positive_mass,
+)
+from density_field_properties.read_data.halos.column_maps import (
+    ROCKSTAR_LIST_COLUMNS,
+    UNIT_HLIST_COLUMNS,
 )
 from density_field_properties.read_data.halos.rockstar import RockstarCatalogReader
 

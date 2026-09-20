@@ -1,13 +1,15 @@
 """Unit tests for assembly-bias validation helpers."""
 
-import importlib.util
+import importlib
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import numpy as np
 import pytest
 
-if importlib.util.find_spec("bigfile") is None:
+try:
+    importlib.import_module("bigfile")
+except Exception:
     pytest.skip("bigfile not available", allow_module_level=True)
 
 from density_field_properties.environment_properties.cic.cic_deposit import (

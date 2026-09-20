@@ -6,7 +6,11 @@ from typing import Sequence, Union
 import numpy as np
 import pandas as pd
 
-from density_field_properties.haloscope.sim_to_fastpm.config import (
+from density_field_properties.pipelines.config import (
+    ASSEMBLY_BIAS_TIDAL_PDF_NAME,
+    DEFAULT_ASSEMBLY_BIAS_N_GRID,
+)
+from density_field_properties.pipelines.run_defaults import (
     ASSEMBLY_BIAS_DM_BATCH_SIZE,
     DM_MASS_PARTICLE_MSUN_H,
     FASTPM_BOXSIZE_MPC_H,
@@ -16,10 +20,6 @@ from density_field_properties.haloscope.sim_to_fastpm.config import (
     default_fastpm_saved_cic_density_paths,
     default_sim_dm_particles_path,
     default_sim_saved_cic_density_paths,
-)
-from density_field_properties.pipelines.config import (
-    ASSEMBLY_BIAS_TIDAL_PDF_NAME,
-    DEFAULT_ASSEMBLY_BIAS_N_GRID,
 )
 from density_field_properties.validation.assembly_bias import (
     assembly_bias_curves_for_catalog,

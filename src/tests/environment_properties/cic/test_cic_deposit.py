@@ -133,7 +133,7 @@ def test_density_field_cic_main_fastpm_bigfile(
         patch("os.path.isfile", return_value=False),
         patch("os.path.isdir", return_value=True),
         patch(
-            "density_field_properties.density_field.particle_io.BigFile",
+            "density_field_properties.read_data.particles.particle_io.BigFile",
             return_value=mock_bigfile_dm_positions,
         ),
     ):

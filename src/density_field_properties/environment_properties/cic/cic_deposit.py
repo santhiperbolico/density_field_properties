@@ -5,8 +5,8 @@ from typing import Optional
 
 import numpy as np
 
-from density_field_properties.density_field.particle_io import iter_dm_particle_batches
 from density_field_properties.environment_properties.cic.utils import DensityFieldInfo
+from density_field_properties.read_data.particles import iter_dm_particle_batches
 
 
 def weighted_field_cic(
