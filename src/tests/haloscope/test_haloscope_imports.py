@@ -1,6 +1,7 @@
 """Import checks for Haloscope and SIM-to-FastPM modules (no cluster data)."""
 
 import importlib
+import warnings
 
 import pytest
 
@@ -10,7 +11,26 @@ import pytest
     [
         (
             "density_field_properties.haloscope",
-            ["ConditionalMultiVariateGaussian"],
+            [
+                "ConditionalMultiVariateGaussian",
+                "default_mass_bin_edges",
+                "enrich_fastpm_catalog",
+                "fit_models",
+                "holdout_validate_sim_bins",
+                "predict_models",
+            ],
+        ),
+        (
+            "density_field_properties.haloscope.bins",
+            ["default_mass_bin_edges", "mask_mass_bin"],
+        ),
+        (
+            "density_field_properties.haloscope.training",
+            ["fit_models", "holdout_validate_sim_bins"],
+        ),
+        (
+            "density_field_properties.haloscope.predict",
+            ["predict_models", "enrich_fastpm_catalog"],
         ),
         (
             "density_field_properties.haloscope.sim_to_fastpm.config",
@@ -29,10 +49,6 @@ import pytest
             ["load_unit_sim_training_catalog", "load_fastpm_target_catalog"],
         ),
         (
-            "density_field_properties.haloscope.sim_to_fastpm.training",
-            ["default_mass_bin_edges", "enrich_fastpm_catalog", "holdout_validate_sim_bins"],
-        ),
-        (
             "density_field_properties.haloscope.sim_to_fastpm.plotting",
             ["corner_plot_sim_validation", "median_property_vs_mass"],
         ),
@@ -45,6 +61,21 @@ def test_haloscope_public_symbols_are_importable(module_path, symbol_names):
     module = importlib.import_module(module_path)
     for name in symbol_names:
         assert hasattr(module, name), f"{module_path} missing {name}"
+
+
+def test_legacy_sim_to_fastpm_training_shim_emits_deprecation_warning():
+    """
+    Legacy training imports must warn but remain callable.
+    """
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        module = importlib.import_module(
+            "density_field_properties.haloscope.sim_to_fastpm.training"
+        )
+        assert any(
+            issubclass(item.category, DeprecationWarning) for item in caught
+        ), "Expected DeprecationWarning from legacy sim_to_fastpm.training shim"
+        assert callable(module.enrich_fastpm_catalog)
 
 
 def test_run_sim_to_fastpm_haloscope_script_main_imports():

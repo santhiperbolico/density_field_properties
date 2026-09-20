@@ -7,11 +7,17 @@ from typing import Optional, Sequence, Union
 import numpy as np
 import pandas as pd
 
+from density_field_properties.haloscope import (
+    default_mass_bin_edges,
+    enrich_fastpm_catalog,
+    holdout_validate_sim_bins,
+)
 from density_field_properties.haloscope.sim_to_fastpm.config import (
     CALIBRATE_MASS,
     ENV_RADIUS_MPC_H,
     FASTPM_BOXSIZE_MPC_H,
     INPUT_FEATURES,
+    OUTPUT_FEATURES,
     SIM_BOXSIZE_MPC_H,
     default_fastpm_tidal_descriptors_dir,
     default_unit_tidal_descriptors_dir,
@@ -19,11 +25,6 @@ from density_field_properties.haloscope.sim_to_fastpm.config import (
 from density_field_properties.haloscope.sim_to_fastpm.load_catalogs import (
     load_fastpm_target_catalog,
     load_unit_sim_training_catalog,
-)
-from density_field_properties.haloscope.sim_to_fastpm.training import (
-    default_mass_bin_edges,
-    enrich_fastpm_catalog,
-    holdout_validate_sim_bins,
 )
 from density_field_properties.pipelines.config import HaloscopeEnrichmentConfig
 from density_field_properties.preprocessing.context import build_preprocessing_context
@@ -151,12 +152,14 @@ def run_haloscope_enrichment_pipeline(
     )
 
     bin_edges = default_mass_bin_edges(np.log10(halos_sim["M200b"].max()))
+    output_features = list(OUTPUT_FEATURES)
     if config.run_holdout_validation:
         holdout_validate_sim_bins(
             halos_sim,
             bin_edges,
-            min_bin_size=config.min_bin_size,
             input_features=feature_names,
+            output_features=output_features,
+            min_bin_size=config.min_bin_size,
         )
 
     enriched, _ = enrich_fastpm_catalog(
@@ -164,10 +167,11 @@ def run_haloscope_enrichment_pipeline(
         halos_fastpm,
         bin_edges,
         mass_column_fastpm=mass_col_fastpm,
-        min_bin_size=config.min_bin_size,
         input_features=feature_names,
+        output_features=output_features,
+        min_bin_size=config.min_bin_size,
     )
-    predicted = enriched[["cv", "Spin", "ca", "ba"]].notna().all(axis=1).sum()
+    predicted = enriched[list(output_features)].notna().all(axis=1).sum()
     if predicted == 0:
         raise RuntimeError(
             "No FastPM halos received Haloscope predictions; "

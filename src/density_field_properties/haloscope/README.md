@@ -4,7 +4,7 @@
 
 ## Upstream code
 
-`haloscope.py` is a **verbatim copy** of the upstream module
+`model.py` is a **verbatim copy** of the upstream module
 [haloscope.py](https://github.com/computationalAstroUAM/haloscope/blob/main/haloscope.py).
 It is not reformatted with black/flake8/isort in this repo (see `src/.pre-commit-config.yaml`).
 
@@ -12,7 +12,11 @@ Import in this project:
 
 ```python
 from density_field_properties.haloscope import ConditionalMultiVariateGaussian
+from density_field_properties.haloscope import fit_models, predict_models
 ```
+
+Canonical modules: `model.py`, `bins.py`, `training.py`, `predict.py`.
+`haloscope.py` and `sim_to_fastpm/training.py` are deprecated shims until S7.
 
 ## Repository-specific code
 

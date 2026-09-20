@@ -1,8 +1,8 @@
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
 #
-# Vendored upstream haloscope.py — do not lint or format in pre-commit.
-exclude: ^src/density_field_properties/haloscope/haloscope\.py$
+# Vendored upstream model.py — do not lint or format in pre-commit.
+exclude: ^src/density_field_properties/haloscope/model\.py$
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
