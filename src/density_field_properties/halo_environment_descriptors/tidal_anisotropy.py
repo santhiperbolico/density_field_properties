@@ -6,7 +6,7 @@ from typing import Optional
 import numpy as np
 
 from density_field_properties.density_field.utils import get_grid_cell
-from density_field_properties.halo_catalog.halo_catalog import HaloCatalogData, HaloCatalogReader
+from density_field_properties.read_data.halos.base import HaloCatalogData, HaloCatalogReader
 from density_field_properties.tidal_tensor import TIDAL_TENSOR_PATH, TidalTensorArray
 
 ANISOTROPY_PATH = "tidal_anisotropy"

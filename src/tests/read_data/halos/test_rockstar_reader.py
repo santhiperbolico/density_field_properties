@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 
 from density_field_properties.cosmology import Cosmology
-from density_field_properties.halo_catalog.rockstar import (
+from density_field_properties.read_data.halos.rockstar import (
     ROCKSTAR_HALO_COLUMNS_POSITION,
     RockstarCatalogReader,
     read_rockstar_cosmology_header,

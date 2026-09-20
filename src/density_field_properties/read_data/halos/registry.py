@@ -1,0 +1,48 @@
+from density_field_properties.read_data.halos.base import HaloCatalogReader
+from density_field_properties.read_data.halos.rockstar import RockstarCatalogReader
+
+FASTPM_CATALOG_NAME = "fastpm"
+
+
+class HaloCatalogError(Exception):
+    pass
+
+
+def _fastpm_catalog_reader():
+    """
+    Import FastPM reader lazily so Rockstar-only workflows avoid bigfile.
+    """
+    from density_field_properties.read_data.halos.fastpm import FastPMCatalogReader
+
+    return FastPMCatalogReader
+
+
+def get_halo_catalog_reader(catalog_name: str) -> HaloCatalogReader:
+    """
+    Retrieve a halo catalog reader based on the given catalog name.
+
+    This function checks if the provided catalog name corresponds to a supported
+    halo catalog reader and returns the appropriate reader class. If the catalog
+    name is not recognized, a ValueError is raised. Use ``rockstar`` for Rockstar
+    ``.list`` catalogs, including outputs from FastPM+Rockstar pipelines.
+
+    Parameters
+    ----------
+    catalog_name : str
+        The name of the catalog for which the reader is required.
+
+    Raises
+    ------
+    HaloCatalogError
+        If the provided catalog name is not supported.
+
+    Returns
+    -------
+    HaloCatalogReader
+        The reader class object corresponding to the provided catalog name.
+    """
+    if catalog_name == RockstarCatalogReader.calog_name:
+        return RockstarCatalogReader
+    if catalog_name == FASTPM_CATALOG_NAME:
+        return _fastpm_catalog_reader()
+    raise HaloCatalogError(f"Catalog {catalog_name} not supported.")

@@ -3,8 +3,10 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from density_field_properties.halo_catalog.fastpm import MSUN_G, FastPMCatalogReader
-from density_field_properties.halo_catalog.halo_catalog import HaloCatalogData
+from density_field_properties.read_data.halos.base import HaloCatalogData
+from density_field_properties.read_data.halos.fastpm import MSUN_G, FastPMCatalogReader
+
+FASTPM_BIGFILE_PATCH = "density_field_properties.read_data.halos.fastpm.BigFile"
 
 
 @pytest.fixture
@@ -36,7 +38,7 @@ def mock_bigfile():
 
 
 def test_fastpm_reader_basic(mock_bigfile):
-    with patch("density_field_properties.halo_catalog.fastpm.BigFile", return_value=mock_bigfile):
+    with patch(FASTPM_BIGFILE_PATCH, return_value=mock_bigfile):
         hcat = FastPMCatalogReader.read_catalog("path/to/fastpm/000")
 
     assert isinstance(hcat, HaloCatalogData)
@@ -48,7 +50,7 @@ def test_fastpm_reader_basic(mock_bigfile):
 
 
 def test_fastpm_reader_batch_generator(mock_bigfile):
-    with patch("density_field_properties.halo_catalog.fastpm.BigFile", return_value=mock_bigfile):
+    with patch(FASTPM_BIGFILE_PATCH, return_value=mock_bigfile):
         gen = FastPMCatalogReader.read_catalog_batch_generator("path/to/fastpm/000", batch_size=1)
         batch, start, end = next(gen)
 

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from density_field_properties.halo_catalog.halo_catalog import HaloCatalogData
+from density_field_properties.read_data.halos.base import HaloCatalogData
 
 TIDAL_DESCRIPTOR_N_COLS = 8
 

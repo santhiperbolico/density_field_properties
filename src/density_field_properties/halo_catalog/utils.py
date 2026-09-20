@@ -1,41 +1,16 @@
-from density_field_properties.halo_catalog.fastpm import FastPMCatalogReader
-from density_field_properties.halo_catalog.halo_catalog import HaloCatalogReader
-from density_field_properties.halo_catalog.rockstar import RockstarCatalogReader
+"""Deprecated shim — use read_data.halos.registry."""
 
+import warnings
 
-class HaloCatalogError(Exception):
-    pass
+from density_field_properties.read_data.halos.registry import (
+    HaloCatalogError,
+    get_halo_catalog_reader,
+)
 
+warnings.warn(
+    "halo_catalog.utils is deprecated; use density_field_properties.read_data.halos.registry",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-def get_halo_catalog_reader(catalog_name: str) -> HaloCatalogReader:
-    """
-    Retrieve a halo catalog reader based on the given catalog name.
-
-    This function checks if the provided catalog name corresponds to a supported
-    halo catalog reader and returns the appropriate reader class. If the catalog
-    name is not recognized, a ValueError is raised. Use ``rockstar`` for Rockstar
-    ``.list`` catalogs, including outputs from FastPM+Rockstar pipelines.
-
-    Parameters
-    ----------
-    catalog_name : str
-        The name of the catalog for which the reader is required.
-
-    Raises
-    ------
-    HaloCatalogError
-        If the provided catalog name is not supported.
-
-    Returns
-    -------
-    HaloCatalogReader
-        The reader class object corresponding to the provided catalog name.
-    """
-    catalogs = {
-        RockstarCatalogReader.calog_name: RockstarCatalogReader,
-        FastPMCatalogReader.calog_name: FastPMCatalogReader,
-    }
-    try:
-        return catalogs[catalog_name]
-    except KeyError:
-        raise HaloCatalogError(f"Catalog {catalog_name} not supported.")
+__all__ = ["HaloCatalogError", "get_halo_catalog_reader"]

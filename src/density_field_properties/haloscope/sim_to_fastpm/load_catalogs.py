@@ -7,7 +7,6 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from density_field_properties.halo_catalog.rockstar import RockstarCatalogReader
 from density_field_properties.haloscope.sim_to_fastpm.config import (
     ROCKSTAR_LIST_COLUMNS,
     UNIT_HLIST_COLUMNS,
@@ -16,6 +15,7 @@ from density_field_properties.preprocessing.filters import (
     filter_host_training_halos,
     filter_positive_mass,
 )
+from density_field_properties.read_data.halos.rockstar import RockstarCatalogReader
 
 
 def _read_whitespace_table_lines(

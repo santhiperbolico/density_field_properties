@@ -12,10 +12,10 @@ from density_field_properties.density_field.cic_deposit import (
     load_density_field_cic,
 )
 from density_field_properties.density_field.utils import DensityFieldInfo
-from density_field_properties.halo_catalog.utils import get_halo_catalog_reader
 from density_field_properties.halo_environment_descriptors.tidal_anisotropy import (
     tidal_anisotropy_and_overdensity_from_halo_calaog,
 )
+from density_field_properties.read_data.halos.registry import get_halo_catalog_reader
 from density_field_properties.tidal_tensor import TidalTensorArray
 
 RMIN = 1000 / 4096
