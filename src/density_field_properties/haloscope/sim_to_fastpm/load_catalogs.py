@@ -12,6 +12,10 @@ from density_field_properties.haloscope.sim_to_fastpm.config import (
     ROCKSTAR_LIST_COLUMNS,
     UNIT_HLIST_COLUMNS,
 )
+from density_field_properties.preprocessing.filters import (
+    filter_host_training_halos,
+    filter_positive_mass,
+)
 
 
 def _read_whitespace_table_lines(
@@ -94,7 +98,7 @@ def load_unit_sim_training_catalog(
     frame = _rows_to_frame(rows, UNIT_HLIST_COLUMNS)
     frame = frame.rename(columns={"id": "halo_id"})
     frame["cv"] = frame["Rvir"] / frame["Rs_Klypin"]
-    hosts = frame[(frame["pid"] == -1) & (frame["M200b"] > 0) & np.isfinite(frame["cv"])].copy()
+    hosts = filter_host_training_halos(frame)
     hosts = hosts.rename(
         columns={
             "halo_id": "id",
@@ -173,5 +177,4 @@ def load_fastpm_target_catalog(
         Positive-mass halos with ``x``, ``y``, ``z``, ``M200b``.
     """
     frame = rockstar_halo_catalog_to_dataframe(list_path, n_lines=max_halos)
-    frame = frame[frame["M200b"] > 0].reset_index(drop=True)
-    return frame
+    return filter_positive_mass(frame)

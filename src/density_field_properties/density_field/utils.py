@@ -1,4 +1,4 @@
-from typing import Optional, Self
+from typing import Optional
 
 import numpy as np
 
@@ -113,7 +113,7 @@ class DensityFieldInfo:
         return None
 
     @classmethod
-    def load_information(cls, density_info_file: str) -> Self:
+    def load_information(cls, density_info_file: str) -> "DensityFieldInfo":
         density_info = np.loadtxt(density_info_file, delimiter=",")
         return cls(*density_info)
 

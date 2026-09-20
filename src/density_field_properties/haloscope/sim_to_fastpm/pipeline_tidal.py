@@ -2,9 +2,11 @@
 
 import warnings
 
+from density_field_properties.pipelines.haloscope_enrichment import (
+    write_tidal_assembly_bias_panel,
+)
 from density_field_properties.pipelines.haloscope_enrichment_tidal import (
     run_haloscope_enrichment_tidal_pipeline,
-    write_tidal_assembly_bias_panel,
 )
 
 warnings.warn(

@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Callable, Optional, Self
+from typing import Callable, Optional
 
 import h5py
 import numpy as np
@@ -142,7 +142,7 @@ class TidalTensor:
         self.gaussian_scale = gaussian_scale
 
     @classmethod
-    def from_folder(cls, path: str, gaussian_scale: Optional[float | int] = None) -> Self:
+    def from_folder(cls, path: str, gaussian_scale: Optional[float | int] = None) -> "TidalTensor":
         """
         Create an instance of the class by loading tidal tensor components from a folder.
 
@@ -196,7 +196,7 @@ class TidalTensor:
         box_size: float,
         path: str,
         gaussian_scale: Optional[float | int] = None,
-    ) -> Self:
+    ) -> "TidalTensor":
         """
         Computes the tidal tensor in Fourier space from a given density contrast field.
 
@@ -451,7 +451,7 @@ class TidalTensorArray:
         return gs_0, gs_1
 
     @classmethod
-    def from_folder(cls, path: str) -> Self:
+    def from_folder(cls, path: str) -> "TidalTensorArray":
         """
         Creates an instance of the class from the contents of a folder.
 
@@ -490,7 +490,7 @@ class TidalTensorArray:
     @classmethod
     def from_delta(
         cls, delta: np.ndarray, box_size: float, path: str, gaussian_scale_list: list[float | int]
-    ) -> Self:
+    ) -> "TidalTensorArray":
         """
         Create an instance of the class from a given set of density field halo_catalog
         and scales.

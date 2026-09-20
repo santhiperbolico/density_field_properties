@@ -11,11 +11,17 @@ import pytest
     [
         (
             "density_field_properties.pipelines",
-            ["run_haloscope_enrichment_pipeline"],
+            [
+                "run_haloscope_enrichment_pipeline",
+                "write_tidal_assembly_bias_panel",
+            ],
         ),
         (
             "density_field_properties.pipelines.haloscope_enrichment",
-            ["run_haloscope_enrichment_pipeline"],
+            [
+                "run_haloscope_enrichment_pipeline",
+                "write_tidal_assembly_bias_panel",
+            ],
         ),
         (
             "density_field_properties.pipelines.haloscope_enrichment_tidal",
@@ -30,6 +36,9 @@ def test_pipeline_public_symbols_are_importable(module_path, symbol_names):
     """
     Each listed symbol must resolve on the canonical pipelines module.
     """
+    if module_path == "density_field_properties.pipelines.haloscope_enrichment_tidal":
+        pytest.importorskip("bigfile")
+
     module = importlib.import_module(module_path)
     for name in symbol_names:
         assert hasattr(module, name), f"{module_path} missing {name}"

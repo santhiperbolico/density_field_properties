@@ -1,12 +1,17 @@
 """Unit tests for tidal Haloscope feature attachment."""
 
+import sys
+
 import numpy as np
 import pandas as pd
 import pytest
 
-from density_field_properties.haloscope.sim_to_fastpm.tidal_features import (
+if sys.version_info < (3, 11):
+    pytest.skip("tidal feature tests require Python 3.11+", allow_module_level=True)
+
+from density_field_properties.preprocessing.filters import filter_finite_input_features
+from density_field_properties.preprocessing.tidal_join import (
     attach_tidal_anisotropy,
-    filter_finite_input_features,
     load_halo_environment_descriptor_table,
 )
 
