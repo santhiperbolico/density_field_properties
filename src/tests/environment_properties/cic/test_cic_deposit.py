@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from density_field_properties.density_field.cic_deposit import (
+from density_field_properties.environment_properties.cic.cic_deposit import (
     delta_field_from_saved_cic,
     density_field_cic_main,
     load_density_field_cic,
@@ -12,7 +12,7 @@ from density_field_properties.density_field.cic_deposit import (
     save_density_field_cic,
     weighted_field_cic,
 )
-from density_field_properties.density_field.utils import DensityFieldInfo
+from density_field_properties.environment_properties.cic.utils import DensityFieldInfo
 
 MASS_PARTICLE = 1.2e9
 BOX_SIZE = 3

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from density_field_properties.density_field.utils import get_grid_cell
+from density_field_properties.environment_properties.cic.utils import get_grid_cell
 
 
 @pytest.mark.parametrize(

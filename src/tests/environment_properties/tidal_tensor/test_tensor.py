@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 import pytest
 
-from density_field_properties.tidal_tensor import (
+from density_field_properties.environment_properties.tidal_tensor import (
     GAUSSIAN_SCALE_DEFAULT,
     NAME_HD5,
     TidalTensor,

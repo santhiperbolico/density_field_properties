@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from density_field_properties.density_field.fourrier_transformations import kgrid
+from density_field_properties.environment_properties.fourier.fourrier_transformations import kgrid
 
 
 def kvector(boz_size, n_grid, flag=0, sparse=False):

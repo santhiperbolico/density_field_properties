@@ -1,6 +1,4 @@
-"""Deprecated shim — use environment_properties.tidal_tensor."""
-
-import warnings
+"""Tidal tensor field computation from matter overdensity."""
 
 from density_field_properties.environment_properties.tidal_tensor.tensor import (
     GAUSSIAN_SCALE_DEFAULT,
@@ -10,12 +8,6 @@ from density_field_properties.environment_properties.tidal_tensor.tensor import 
     TidalTensorArray,
     interpolate_array_generator,
     tidal_tensor_component_calculation,
-)
-
-warnings.warn(
-    "tidal_tensor is deprecated; use density_field_properties.environment_properties.tidal_tensor",
-    DeprecationWarning,
-    stacklevel=2,
 )
 
 __all__ = [

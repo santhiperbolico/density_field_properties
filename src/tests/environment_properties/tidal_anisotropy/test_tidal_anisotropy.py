@@ -4,15 +4,15 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from density_field_properties.halo_environment_descriptors.tidal_anisotropy import (
+from density_field_properties.environment_properties.tidal_anisotropy.tidal_anisotropy import (
     ANISOTROPY_PATH,
     _tidal_anisotropy_and_overdensity_from_halo_calaog_batches,
     _tidal_anisotropy_and_overdensity_from_halo_calaog_complete,
     format_halo_catalog,
     tidal_anisotropy_and_overdensity_from_halo_calaog,
 )
+from density_field_properties.environment_properties.tidal_tensor import TidalTensorArray
 from density_field_properties.read_data.halos.base import HaloCatalogData
-from density_field_properties.tidal_tensor import TidalTensorArray
 
 TIDAL_DESCRIPTOR_N_COLS = 8
 
