@@ -1,0 +1,32 @@
+{
+  "run_name": "haloscope_tidal_production",
+  "paths": {
+    "sim_hlist": null,
+    "fastpm_list": null,
+    "repo_root": ".",
+    "output_dir": "output/sim_to_fastpm_haloscope_tidal"
+  },
+  "sample": {
+    "max_sim_halos": null,
+    "max_fastpm_halos": null,
+    "max_descriptor_batch_files": null
+  },
+  "haloscope": {
+    "input_features": ["t_over_u", "tidal_anisotropy"],
+    "min_bin_size": 10,
+    "run_holdout_validation": true,
+    "enriched_parquet_name": "fastpm_out_8_haloscope_tidal_enriched.parquet"
+  },
+  "tidal": {
+    "n_grid": 512,
+    "unit_descriptors_dir": null,
+    "fastpm_descriptors_dir": null
+  },
+  "validation": {
+    "assembly_bias": {
+      "enabled": false,
+      "n_grid": 128
+    }
+  },
+  "collect_tables": false
+}

@@ -5,29 +5,31 @@ Run SIM-to-FastPM Haloscope on a subset (smoke) or full catalogs.
 Example (from repository root, smoke ~few minutes):
 
     PYTHONPATH=src python scripts/run_sim_to_fastpm_haloscope.py \\
-        --max-sim-halos 8000 --max-fastpm-halos 8000 --min-bin-size 5
+        --config config/haloscope_run_env_smoke.json
 
 Full run (heavy; cluster recommended):
 
     PYTHONPATH=src python scripts/run_sim_to_fastpm_haloscope.py \\
-        --max-sim-halos 0 --max-fastpm-halos 0
+        --config config/haloscope_run_env_production.json
 """
 
 import argparse
+import json
 import logging
 import sys
 from pathlib import Path
 
-from density_field_properties.haloscope.sim_to_fastpm.config import (
-    default_fastpm_list_path,
-    default_sim_hlist_path,
+from density_field_properties.pipelines.config import (
+    DEFAULT_ENV_PRODUCTION_CONFIG,
+    DEFAULT_ENV_SMOKE_CONFIG,
+    load_haloscope_enrichment_config,
 )
 from density_field_properties.pipelines.haloscope_enrichment import (
     run_haloscope_enrichment_pipeline,
 )
 
 
-def _parse_args(argv: list[str], default_sim: Path, default_fastpm: Path) -> argparse.Namespace:
+def _parse_args(argv: list[str]) -> argparse.Namespace:
     """
     Parse CLI arguments for the Haloscope pipeline runner.
 
@@ -35,10 +37,6 @@ def _parse_args(argv: list[str], default_sim: Path, default_fastpm: Path) -> arg
     ----------
     argv : list[str]
         Command-line arguments without the program name.
-    default_sim : Path
-        Default SIM hlist path when ``--sim-hlist`` is omitted.
-    default_fastpm : Path
-        Default FastPM list path when ``--fastpm-list`` is omitted.
 
     Returns
     -------
@@ -47,45 +45,13 @@ def _parse_args(argv: list[str], default_sim: Path, default_fastpm: Path) -> arg
     """
     parser = argparse.ArgumentParser(description="SIM (UNIT) to FastPM Haloscope enrichment")
     parser.add_argument(
-        "--sim-hlist",
+        "--config",
         type=Path,
-        default=default_sim,
-        help="Path to SIM (UNIT) hlist catalog.",
-    )
-    parser.add_argument(
-        "--fastpm-list",
-        type=Path,
-        default=default_fastpm,
-        help="Path to FastPM Rockstar out_*.list catalog.",
-    )
-    parser.add_argument(
-        "--max-sim-halos",
-        type=int,
-        default=8000,
-        help="Max UNIT data rows to read (0 = entire file). Default: 8000 smoke subset.",
-    )
-    parser.add_argument(
-        "--max-fastpm-halos",
-        type=int,
-        default=8000,
-        help="Max FastPM halos to read (0 = entire file). Default: 8000.",
-    )
-    parser.add_argument(
-        "--min-bin-size",
-        type=int,
-        default=5,
-        help="Minimum halos per mass bin for fit/validation (use 10 for production).",
-    )
-    parser.add_argument(
-        "--output-dir",
-        type=Path,
-        default=Path("output/sim_to_fastpm_haloscope"),
-        help="Output directory for enriched Parquet.",
-    )
-    parser.add_argument(
-        "--skip-holdout",
-        action="store_true",
-        help="Skip SIM hold-out validation step.",
+        default=DEFAULT_ENV_SMOKE_CONFIG,
+        help=(
+            "JSON run configuration "
+            f"(default: {DEFAULT_ENV_SMOKE_CONFIG}; production: {DEFAULT_ENV_PRODUCTION_CONFIG})."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -104,23 +70,26 @@ def main(argv: list[str]) -> int:
     int
         Process exit code (0 on success).
     """
-    args = _parse_args(
-        argv,
-        default_sim=default_sim_hlist_path(),
-        default_fastpm=default_fastpm_list_path(),
-    )
-    max_sim = None if args.max_sim_halos == 0 else args.max_sim_halos
-    max_fastpm = None if args.max_fastpm_halos == 0 else args.max_fastpm_halos
+    args = _parse_args(argv)
+    config_path = Path(args.config)
+    config = load_haloscope_enrichment_config(config_path)
 
-    out_path = run_haloscope_enrichment_pipeline(
-        sim_hlist_path=args.sim_hlist,
-        fastpm_list_path=args.fastpm_list,
-        max_sim_halos=max_sim,
-        max_fastpm_halos=max_fastpm,
-        output_dir=args.output_dir,
-        min_bin_size=args.min_bin_size,
-        run_holdout_validation=not args.skip_holdout,
+    with config_path.open(encoding="utf-8") as handle:
+        payload = json.load(handle)
+    run_name = payload.get("run_name", config_path.stem)
+
+    logging.info(
+        "Run settings: run_name=%s config=%s max_sim_halos=%s max_fastpm_halos=%s "
+        "min_bin_size=%s output_dir=%s",
+        run_name,
+        config_path,
+        config.max_sim_halos,
+        config.max_fastpm_halos,
+        config.min_bin_size,
+        config.output_dir,
     )
+
+    out_path = run_haloscope_enrichment_pipeline(config)
     logging.info("Enriched catalog written to %s", out_path)
     return 0
 

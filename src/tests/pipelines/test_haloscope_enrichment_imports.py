@@ -20,13 +20,11 @@ import pytest
             "density_field_properties.pipelines.haloscope_enrichment",
             [
                 "run_haloscope_enrichment_pipeline",
-                "write_tidal_assembly_bias_panel",
             ],
         ),
         (
-            "density_field_properties.pipelines.haloscope_enrichment_tidal",
+            "density_field_properties.validation",
             [
-                "run_haloscope_enrichment_tidal_pipeline",
                 "write_tidal_assembly_bias_panel",
             ],
         ),
@@ -36,9 +34,6 @@ def test_pipeline_public_symbols_are_importable(module_path, symbol_names):
     """
     Each listed symbol must resolve on the canonical pipelines module.
     """
-    if module_path == "density_field_properties.pipelines.haloscope_enrichment_tidal":
-        pytest.importorskip("bigfile")
-
     module = importlib.import_module(module_path)
     for name in symbol_names:
         assert hasattr(module, name), f"{module_path} missing {name}"
@@ -67,10 +62,12 @@ def test_pipelines_entrypoint_main_imports():
         default_fastpm_list_path,
         default_sim_hlist_path,
     )
+    from density_field_properties.pipelines.config import load_haloscope_enrichment_config
     from density_field_properties.pipelines.haloscope_enrichment import (
         run_haloscope_enrichment_pipeline,
     )
 
     assert callable(default_sim_hlist_path)
     assert callable(default_fastpm_list_path)
+    assert callable(load_haloscope_enrichment_config)
     assert callable(run_haloscope_enrichment_pipeline)
