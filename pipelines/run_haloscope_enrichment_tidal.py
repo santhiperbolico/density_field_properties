@@ -1,21 +1,15 @@
 #!/usr/bin/env python
 """
-Run SIM-to-FastPM Haloscope with T/|U| and tidal anisotropy inputs.
+Run Haloscope SIM-to-FastPM enrichment with T/|U| and tidal anisotropy inputs.
 
-Quick run (same limits as notebook ``QUICK_RUN=True``):
+Quick run:
 
-    PYTHONPATH=src python scripts/run_sim_to_fastpm_haloscope_tidal.py --quick-run
+    PYTHONPATH=src python pipelines/run_haloscope_enrichment_tidal.py --quick-run
 
 Quick run with assembly-bias PDF:
 
-    PYTHONPATH=src python scripts/run_sim_to_fastpm_haloscope_tidal.py \\
+    PYTHONPATH=src python pipelines/run_haloscope_enrichment_tidal.py \\
         --quick-run --assembly-bias
-
-Full run with assembly-bias PDF (heavy; cluster recommended):
-
-    PYTHONPATH=src python scripts/run_sim_to_fastpm_haloscope_tidal.py \\
-        --max-sim-halos 0 --max-fastpm-halos 0 --max-descriptor-batches 0 \\
-        --assembly-bias
 """
 
 import argparse
@@ -41,7 +35,7 @@ from density_field_properties.pipelines.haloscope_enrichment_tidal import (
 
 def _parse_args(argv: list[str], default_sim: Path, default_fastpm: Path) -> argparse.Namespace:
     """
-    Parse CLI arguments for the tidal Haloscope pipeline runner.
+    Parse CLI arguments for the tidal Haloscope enrichment pipeline.
 
     Parameters
     ----------
@@ -225,7 +219,7 @@ def _resolve_run_settings(
 
 def main(argv: list[str]) -> int:
     """
-    Execute the tidal Haloscope pipeline and log the output path.
+    Execute the tidal Haloscope enrichment pipeline and log the output path.
 
     Parameters
     ----------

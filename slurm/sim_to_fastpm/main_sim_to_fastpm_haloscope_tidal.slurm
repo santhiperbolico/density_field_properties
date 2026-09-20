@@ -25,7 +25,7 @@ mkdir -p "${OUTPUT_PATH}"
 
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starting SIM (UNIT) to FastPM Haloscope (tidal inputs, full catalogs + assembly bias)"
 
-srun python scripts/run_sim_to_fastpm_haloscope_tidal.py \
+srun python pipelines/run_haloscope_enrichment_tidal.py \
     --repo-root /home/arnes/santiago_arranz/density_field_properties \
     --max-sim-halos 0 \
     --max-fastpm-halos 0 \

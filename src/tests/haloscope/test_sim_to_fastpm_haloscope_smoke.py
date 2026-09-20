@@ -8,8 +8,8 @@ from density_field_properties.haloscope.sim_to_fastpm.config import (
     default_fastpm_list_path,
     default_sim_hlist_path,
 )
-from density_field_properties.haloscope.sim_to_fastpm.pipeline import (
-    run_sim_to_fastpm_haloscope_pipeline,
+from density_field_properties.pipelines.haloscope_enrichment import (
+    run_haloscope_enrichment_pipeline,
 )
 
 
@@ -26,7 +26,7 @@ def test_sim_to_fastpm_haloscope_smoke(tmp_path):
     if not sim_path.is_file() or not fastpm_path.is_file():
         pytest.skip("UNIT or FastPM catalog paths not available on this machine")
 
-    out = run_sim_to_fastpm_haloscope_pipeline(
+    out = run_haloscope_enrichment_pipeline(
         sim_hlist_path=sim_path,
         fastpm_list_path=fastpm_path,
         max_sim_halos=4000,

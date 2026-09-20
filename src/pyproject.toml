@@ -12,6 +12,7 @@ skip_gitignore = true
 skip = ["density_field_properties/haloscope/haloscope.py"]
 known_local_folder = [
     "density_field_properties",
+    "density_field_properties.pipelines",
     "tests",
 ]
 

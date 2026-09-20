@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 """
-Run SIM-to-FastPM Haloscope on a subset (smoke) or full catalogs.
+Run Haloscope SIM-to-FastPM enrichment (env-only mode).
 
-Example (from repository root, smoke ~few minutes):
+Example (smoke, from repository root):
 
-    PYTHONPATH=src python scripts/run_sim_to_fastpm_haloscope.py \\
+    PYTHONPATH=src python pipelines/run_haloscope_enrichment.py \\
         --max-sim-halos 8000 --max-fastpm-halos 8000 --min-bin-size 5
 
-Full run (heavy; cluster recommended):
+Full run (cluster recommended):
 
-    PYTHONPATH=src python scripts/run_sim_to_fastpm_haloscope.py \\
+    PYTHONPATH=src python pipelines/run_haloscope_enrichment.py \\
         --max-sim-halos 0 --max-fastpm-halos 0
 """
 
@@ -29,7 +29,7 @@ from density_field_properties.pipelines.haloscope_enrichment import (
 
 def _parse_args(argv: list[str], default_sim: Path, default_fastpm: Path) -> argparse.Namespace:
     """
-    Parse CLI arguments for the Haloscope pipeline runner.
+    Parse CLI arguments for the Haloscope enrichment pipeline.
 
     Parameters
     ----------
@@ -92,7 +92,7 @@ def _parse_args(argv: list[str], default_sim: Path, default_fastpm: Path) -> arg
 
 def main(argv: list[str]) -> int:
     """
-    Execute the Haloscope pipeline and log the output path.
+    Execute the Haloscope enrichment pipeline and log the output path.
 
     Parameters
     ----------

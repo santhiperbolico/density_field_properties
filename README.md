@@ -63,6 +63,7 @@ The hooks will automatically run on every `git commit`, ensuring that code is fo
 * `scipy`
 * `h5py`
 * `matplotlib`
+* `bigfile` *(FastPM snapshots and particle I/O)*
 * `tqdm`
 * `numba` *(optional, for JIT acceleration)*
 

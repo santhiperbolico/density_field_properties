@@ -24,7 +24,7 @@ mkdir -p "${OUTPUT_PATH}"
 
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starting tidal Haloscope QUICK_RUN smoke (+ assembly bias)"
 
-srun python scripts/run_sim_to_fastpm_haloscope_tidal.py \
+srun python pipelines/run_haloscope_enrichment_tidal.py \
     --repo-root /home/arnes/santiago_arranz/density_field_properties \
     --quick-run \
     --assembly-bias \

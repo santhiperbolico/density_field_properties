@@ -16,7 +16,9 @@ from density_field_properties.haloscope import ConditionalMultiVariateGaussian
 
 ## Repository-specific code
 
-`sim_to_fastpm/` contains the UNIT → FastPM enrichment pipeline used here.
+`sim_to_fastpm/` contains domain logic for the UNIT → FastPM enrichment pipeline.
+Orchestration lives in `density_field_properties.pipelines` (repo root entrypoints
+under `pipelines/`).
 
 **Phase 0 decisions and full pipeline plan** (in `phd-agents-toolkit`):
 

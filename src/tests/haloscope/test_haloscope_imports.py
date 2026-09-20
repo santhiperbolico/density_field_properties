@@ -21,8 +21,8 @@ import pytest
             ],
         ),
         (
-            "density_field_properties.haloscope.sim_to_fastpm.pipeline",
-            ["run_sim_to_fastpm_haloscope_pipeline"],
+            "density_field_properties.pipelines.haloscope_enrichment",
+            ["run_haloscope_enrichment_pipeline"],
         ),
         (
             "density_field_properties.haloscope.sim_to_fastpm.load_catalogs",
@@ -55,10 +55,10 @@ def test_run_sim_to_fastpm_haloscope_script_main_imports():
         default_fastpm_list_path,
         default_sim_hlist_path,
     )
-    from density_field_properties.haloscope.sim_to_fastpm.pipeline import (
-        run_sim_to_fastpm_haloscope_pipeline,
+    from density_field_properties.pipelines.haloscope_enrichment import (
+        run_haloscope_enrichment_pipeline,
     )
 
     assert callable(default_sim_hlist_path)
     assert callable(default_fastpm_list_path)
-    assert callable(run_sim_to_fastpm_haloscope_pipeline)
+    assert callable(run_haloscope_enrichment_pipeline)
