@@ -6,13 +6,6 @@ from typing import Sequence, Union
 import numpy as np
 import pandas as pd
 
-from density_field_properties.haloscope.sim_to_fastpm.assembly_bias import (
-    assembly_bias_curves_for_catalog,
-    attach_paranjape_bias,
-    load_fastpm_matter_overdensity,
-    load_sim_matter_overdensity,
-    property_matrix_from_frame,
-)
 from density_field_properties.haloscope.sim_to_fastpm.config import (
     ASSEMBLY_BIAS_DM_BATCH_SIZE,
     DM_MASS_PARTICLE_MSUN_H,
@@ -20,14 +13,22 @@ from density_field_properties.haloscope.sim_to_fastpm.config import (
     OUTPUT_FEATURES,
     SIM_BOXSIZE_MPC_H,
     default_fastpm_dm_particles_path,
-)
-from density_field_properties.haloscope.sim_to_fastpm.plotting import (
-    plot_assembly_bias_env_panel,
+    default_fastpm_saved_cic_density_paths,
+    default_sim_dm_particles_path,
+    default_sim_saved_cic_density_paths,
 )
 from density_field_properties.pipelines.config import (
     ASSEMBLY_BIAS_TIDAL_PDF_NAME,
     DEFAULT_ASSEMBLY_BIAS_N_GRID,
 )
+from density_field_properties.validation.assembly_bias import (
+    assembly_bias_curves_for_catalog,
+    attach_paranjape_bias,
+    load_fastpm_matter_overdensity,
+    load_sim_matter_overdensity,
+    property_matrix_from_frame,
+)
+from density_field_properties.validation.plots import plot_assembly_bias_env_panel
 
 DEFAULT_ASSEMBLY_LOG_MASS_MIN = 11.5
 DEFAULT_ASSEMBLY_LOG_MASS_BINS = 10
@@ -113,12 +114,17 @@ def write_tidal_assembly_bias_panel(
         DEFAULT_ASSEMBLY_LOG_MASS_BINS,
     )
 
+    sim_density_path, sim_density_info_path = default_sim_saved_cic_density_paths()
+    fastpm_density_path, fastpm_density_info_path = default_fastpm_saved_cic_density_paths()
     delta_sim, sim_delta_mode = load_sim_matter_overdensity(
         root,
         SIM_BOXSIZE_MPC_H,
         assembly_bias_n_grid,
         DM_MASS_PARTICLE_MSUN_H,
         dm_batch_size=ASSEMBLY_BIAS_DM_BATCH_SIZE,
+        dm_particles_path=default_sim_dm_particles_path(),
+        saved_density_path=sim_density_path,
+        saved_density_info_path=sim_density_info_path,
     )
     delta_fastpm, fp_delta_mode = load_fastpm_matter_overdensity(
         root,
@@ -127,6 +133,8 @@ def write_tidal_assembly_bias_panel(
         DM_MASS_PARTICLE_MSUN_H,
         default_fastpm_dm_particles_path(),
         dm_batch_size=ASSEMBLY_BIAS_DM_BATCH_SIZE,
+        saved_density_path=fastpm_density_path,
+        saved_density_info_path=fastpm_density_info_path,
     )
     if delta_sim is None:
         sim_delta_mode = "halo CIC"

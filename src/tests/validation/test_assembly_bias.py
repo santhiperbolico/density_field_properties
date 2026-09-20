@@ -1,16 +1,20 @@
-"""Unit tests for SIM-to-FastPM assembly-bias helpers."""
+"""Unit tests for assembly-bias validation helpers."""
 
+import importlib.util
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import numpy as np
 import pytest
 
-from density_field_properties.density_field.cic_deposit import (
+if importlib.util.find_spec("bigfile") is None:
+    pytest.skip("bigfile not available", allow_module_level=True)
+
+from density_field_properties.environment_properties.cic.cic_deposit import (
     DensityFieldInfo,
     save_density_field_cic,
 )
-from density_field_properties.haloscope.sim_to_fastpm.assembly_bias import (
+from density_field_properties.validation.assembly_bias import (
     assembly_bias_curves_for_catalog,
     halo_overdensity_field_cic,
     joint_assembly_masks,

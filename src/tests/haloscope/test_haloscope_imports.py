@@ -41,16 +41,16 @@ import pytest
             ],
         ),
         (
-            "density_field_properties.pipelines.haloscope_enrichment",
-            ["run_haloscope_enrichment_pipeline"],
-        ),
-        (
             "density_field_properties.haloscope.sim_to_fastpm.load_catalogs",
             ["load_unit_sim_training_catalog", "load_fastpm_target_catalog"],
         ),
         (
-            "density_field_properties.haloscope.sim_to_fastpm.plotting",
-            ["corner_plot_sim_validation", "median_property_vs_mass"],
+            "density_field_properties.validation.marginals",
+            ["corner_plot_sim_validation"],
+        ),
+        (
+            "density_field_properties.utils.stats",
+            ["median_property_vs_mass"],
         ),
     ],
 )
@@ -82,6 +82,7 @@ def test_run_sim_to_fastpm_haloscope_script_main_imports():
     """
     Mirror ``scripts/run_sim_to_fastpm_haloscope.py`` deferred imports.
     """
+    pytest.importorskip("bigfile")
     from density_field_properties.haloscope.sim_to_fastpm.config import (
         default_fastpm_list_path,
         default_sim_hlist_path,
