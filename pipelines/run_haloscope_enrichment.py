@@ -30,9 +30,7 @@ from density_field_properties.pipelines.config import (
     DEFAULT_ENV_SMOKE_CONFIG,
     load_haloscope_enrichment_config,
 )
-from density_field_properties.pipelines.haloscope_enrichment import (
-    run_haloscope_enrichment_pipeline,
-)
+from density_field_properties.pipelines.haloscope_pipeline import run_haloscope_pipeline
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -84,10 +82,12 @@ def main(argv: list[str]) -> int:
         payload = json.load(handle)
     run_name = payload.get("run_name", config_path.stem)
 
+    stages = config.pipeline_stages
     logging.info(
         "Run settings: run_name=%s config=%s sim_hlist=%s fastpm_list=%s "
         "max_sim_halos=%s max_fastpm_halos=%s max_descriptor_batches=%s "
-        "min_bin_size=%s output_dir=%s input_features=%s assembly_bias=%s",
+        "min_bin_size=%s output_dir=%s input_features=%s assembly_bias=%s "
+        "pipeline_tidal=%s pipeline_preprocess=%s pipeline_haloscope=%s",
         run_name,
         config_path,
         config.sim_hlist_path,
@@ -99,10 +99,20 @@ def main(argv: list[str]) -> int:
         config.output_dir,
         config.input_features,
         config.run_assembly_bias_plot,
+        stages.tidal_anisotropy.enabled,
+        stages.preprocess.enabled,
+        stages.haloscope.enabled,
     )
 
-    out_path = run_haloscope_enrichment_pipeline(config)
-    logging.info("Enriched catalog written to %s", out_path)
+    result = run_haloscope_pipeline(config)
+    if isinstance(result, Path):
+        logging.info("Enriched catalog written to %s", result)
+    elif isinstance(result, tuple):
+        logging.info("Preprocessed tables written to %s and %s", result[0], result[1])
+    elif result is not None:
+        logging.info("Pipeline finished with result at %s", result.output_path)
+    else:
+        logging.info("Pipeline finished without Haloscope enrichment output.")
     if config.run_assembly_bias_plot:
         logging.info(
             "Assembly bias panel written to %s",

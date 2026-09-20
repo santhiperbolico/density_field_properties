@@ -24,9 +24,7 @@ from density_field_properties.pipelines.config import (
     DEFAULT_ENV_SMOKE_CONFIG,
     load_haloscope_enrichment_config,
 )
-from density_field_properties.pipelines.haloscope_enrichment import (
-    run_haloscope_enrichment_pipeline,
-)
+from density_field_properties.pipelines.haloscope_pipeline import run_haloscope_pipeline
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
@@ -89,7 +87,7 @@ def main(argv: list[str]) -> int:
         config.output_dir,
     )
 
-    out_path = run_haloscope_enrichment_pipeline(config)
+    out_path = run_haloscope_pipeline(config)
     logging.info("Enriched catalog written to %s", out_path)
     return 0
 
