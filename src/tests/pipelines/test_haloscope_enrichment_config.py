@@ -8,9 +8,15 @@ import pytest
 from density_field_properties.pipelines.config import (
     DEFAULT_ENV_SMOKE_CONFIG,
     HaloscopeEnrichmentConfig,
+    HaloscopePipelineStages,
+    TidalAnisotropyStageConfig,
+    TidalAnisotropyTargetConfig,
     load_haloscope_enrichment_config,
+    resolve_dm_mass_particle_msun_h,
     resolve_fastpm_boxsize_mpc_h,
+    resolve_fastpm_dm_particles_path,
     resolve_sim_boxsize_mpc_h,
+    resolve_sim_dm_particles_path,
 )
 from density_field_properties.pipelines.run_defaults import (
     FASTPM_BOXSIZE_MPC_H,
@@ -75,7 +81,10 @@ def test_load_config_from_custom_json(tmp_path):
                     "assembly_bias": {
                         "enabled": True,
                         "n_grid": 64,
-                    }
+                    },
+                    "holdout_corner_plots": {
+                        "enabled": True,
+                    },
                 },
                 "collect_tables": True,
             }
@@ -105,4 +114,31 @@ def test_load_config_from_custom_json(tmp_path):
     assert config.enriched_parquet_name == "enriched.parquet"
     assert config.run_assembly_bias_plot is True
     assert config.assembly_bias_n_grid == 64
+    assert config.run_holdout_corner_plots is True
     assert config.collect_tables is True
+
+
+def test_resolve_assembly_bias_paths_from_pipeline_config(tmp_path):
+    """
+    Assembly-bias helpers should read DM paths from the tidal pipeline stage.
+    """
+    unit_dm = tmp_path / "unit_dm.dat"
+    fastpm_dm = tmp_path / "fastpm_dm"
+    config = HaloscopeEnrichmentConfig(
+        sim_hlist_path=tmp_path / "sim.list",
+        fastpm_list_path=tmp_path / "fastpm.list",
+        box_size_mpc_h=200.0,
+        pipeline_stages=HaloscopePipelineStages(),
+    )
+    config.pipeline_stages.tidal_anisotropy = TidalAnisotropyStageConfig(
+        enabled=True,
+        mass_particle=9.9e8,
+        unit=TidalAnisotropyTargetConfig(dm_particles_file=unit_dm),
+        fastpm=TidalAnisotropyTargetConfig(dm_particles_file=fastpm_dm),
+    )
+
+    assert resolve_sim_boxsize_mpc_h(config) == 200.0
+    assert resolve_fastpm_boxsize_mpc_h(config) == 200.0
+    assert resolve_sim_dm_particles_path(config) == unit_dm
+    assert resolve_fastpm_dm_particles_path(config) == fastpm_dm
+    assert resolve_dm_mass_particle_msun_h(config) == 9.9e8

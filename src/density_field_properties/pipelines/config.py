@@ -1,7 +1,7 @@
 """Run configuration for the Haloscope enrichment pipeline."""
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional, Sequence
 
@@ -41,11 +41,84 @@ _PIPELINE_TARGET_ALIASES = {
 
 DEFAULT_ASSEMBLY_BIAS_N_GRID = 128
 ASSEMBLY_BIAS_TIDAL_PDF_NAME = "assembly_bias_tidal_input.pdf"
+HOLDOUT_CORNER_PLOT_FILENAME_TEMPLATE = "holdout_sim_validation_bin{bin_index}.pdf"
 
 DEFAULT_ENV_SMOKE_CONFIG = Path("config/haloscope_run_env_smoke.json")
 DEFAULT_ENV_PRODUCTION_CONFIG = Path("config/haloscope_run_env_production.json")
 DEFAULT_TIDAL_SMOKE_CONFIG = Path("config/haloscope_run_tidal_smoke.json")
 DEFAULT_TIDAL_PRODUCTION_CONFIG = Path("config/haloscope_run_tidal_production.json")
+
+
+def _default_tidal_unit_target() -> "TidalAnisotropyTargetConfig":
+    """
+    Build default UNIT tidal-anisotropy target settings.
+
+    Returns
+    -------
+    TidalAnisotropyTargetConfig
+        Default HR target configuration.
+    """
+    return TidalAnisotropyTargetConfig()
+
+
+def _default_tidal_fastpm_target() -> "TidalAnisotropyTargetConfig":
+    """
+    Build default FastPM tidal-anisotropy target settings.
+
+    Returns
+    -------
+    TidalAnisotropyTargetConfig
+        Default LR target configuration with Rockstar list column layout.
+    """
+    return TidalAnisotropyTargetConfig(catalog_layout=ROCKSTAR_LIST_CATALOG_LAYOUT)
+
+
+def _default_tidal_anisotropy_stage() -> "TidalAnisotropyStageConfig":
+    """
+    Build default tidal-anisotropy stage settings.
+
+    Returns
+    -------
+    TidalAnisotropyStageConfig
+        Disabled stage with both simulation targets configured.
+    """
+    return TidalAnisotropyStageConfig()
+
+
+def _default_preprocess_stage() -> "PreprocessStageConfig":
+    """
+    Build default preprocess stage settings.
+
+    Returns
+    -------
+    PreprocessStageConfig
+        Disabled preprocess stage configuration.
+    """
+    return PreprocessStageConfig()
+
+
+def _default_haloscope_stage() -> "HaloscopeStageConfig":
+    """
+    Build default Haloscope stage settings.
+
+    Returns
+    -------
+    HaloscopeStageConfig
+        Enabled Haloscope enrichment stage configuration.
+    """
+    return HaloscopeStageConfig()
+
+
+def _default_pipeline_stages() -> "HaloscopePipelineStages":
+    """
+    Build default multi-stage pipeline toggles.
+
+    Returns
+    -------
+    HaloscopePipelineStages
+        Legacy-compatible stage defaults (Haloscope only).
+    """
+    return HaloscopePipelineStages()
 
 
 @dataclass
@@ -99,10 +172,8 @@ class TidalAnisotropyStageConfig:
     mass_particle: float = DM_MASS_PARTICLE_MSUN_H
     cic_batch_size: Optional[int] = None
     descriptor_batch_size: Optional[int] = DEFAULT_DESCRIPTOR_BATCH_SIZE
-    unit: TidalAnisotropyTargetConfig = TidalAnisotropyTargetConfig()
-    fastpm: TidalAnisotropyTargetConfig = TidalAnisotropyTargetConfig(
-        catalog_layout=ROCKSTAR_LIST_CATALOG_LAYOUT,
-    )
+    unit: TidalAnisotropyTargetConfig = field(default_factory=_default_tidal_unit_target)
+    fastpm: TidalAnisotropyTargetConfig = field(default_factory=_default_tidal_fastpm_target)
 
 
 @dataclass
@@ -154,9 +225,11 @@ class HaloscopePipelineStages:
         Haloscope enrichment stage settings.
     """
 
-    tidal_anisotropy: TidalAnisotropyStageConfig = TidalAnisotropyStageConfig()
-    preprocess: PreprocessStageConfig = PreprocessStageConfig()
-    haloscope: HaloscopeStageConfig = HaloscopeStageConfig()
+    tidal_anisotropy: TidalAnisotropyStageConfig = field(
+        default_factory=_default_tidal_anisotropy_stage
+    )
+    preprocess: PreprocessStageConfig = field(default_factory=_default_preprocess_stage)
+    haloscope: HaloscopeStageConfig = field(default_factory=_default_haloscope_stage)
 
 
 @dataclass
@@ -198,6 +271,8 @@ class HaloscopeEnrichmentConfig:
         If True, write the tidal assembly-bias PDF after enrichment.
     assembly_bias_n_grid : int, optional
         Grid resolution for the Paranjape assembly-bias diagnostic.
+    run_holdout_corner_plots : bool, optional
+        If True, write per-bin SIM hold-out corner plots during enrichment.
     collect_tables : bool, optional
         If True, return HR/LR tables in ``HaloscopeEnrichmentRun``.
     box_size_mpc_h : Optional[float], optional
@@ -213,7 +288,7 @@ class HaloscopeEnrichmentConfig:
     repo_root: Path = Path.cwd()
     box_size_mpc_h: Optional[float] = None
     output_dir: Path = OUTPUT_DIR
-    pipeline_stages: HaloscopePipelineStages = HaloscopePipelineStages()
+    pipeline_stages: HaloscopePipelineStages = field(default_factory=_default_pipeline_stages)
     max_sim_halos: Optional[int] = None
     max_fastpm_halos: Optional[int] = None
     max_descriptor_batch_files: Optional[int] = None
@@ -226,6 +301,7 @@ class HaloscopeEnrichmentConfig:
     enriched_parquet_name: str = ENRICHED_PARQUET_NAME
     run_assembly_bias_plot: bool = False
     assembly_bias_n_grid: int = DEFAULT_ASSEMBLY_BIAS_N_GRID
+    run_holdout_corner_plots: bool = False
     collect_tables: bool = False
 
 
@@ -538,6 +614,63 @@ def resolve_fastpm_boxsize_mpc_h(config: HaloscopeEnrichmentConfig) -> float:
     return float(FASTPM_BOXSIZE_MPC_H)
 
 
+def resolve_sim_dm_particles_path(config: HaloscopeEnrichmentConfig) -> Optional[Path]:
+    """
+    Resolve the UNIT DM particle path for assembly-bias matter overdensity.
+
+    Parameters
+    ----------
+    config : HaloscopeEnrichmentConfig
+        Run configuration loaded from JSON or built programmatically.
+
+    Returns
+    -------
+    Optional[Path]
+        DM particle file or snapshot block, or ``None`` when not configured.
+    """
+    unit_dm_path = config.pipeline_stages.tidal_anisotropy.unit.dm_particles_file
+    if unit_dm_path is not None:
+        return unit_dm_path
+    return default_sim_dm_particles_path()
+
+
+def resolve_fastpm_dm_particles_path(config: HaloscopeEnrichmentConfig) -> Optional[Path]:
+    """
+    Resolve the FastPM DM particle path for assembly-bias matter overdensity.
+
+    Parameters
+    ----------
+    config : HaloscopeEnrichmentConfig
+        Run configuration loaded from JSON or built programmatically.
+
+    Returns
+    -------
+    Optional[Path]
+        DM particle file or snapshot block, or ``None`` when not configured.
+    """
+    fastpm_dm_path = config.pipeline_stages.tidal_anisotropy.fastpm.dm_particles_file
+    if fastpm_dm_path is not None:
+        return fastpm_dm_path
+    return default_fastpm_dm_particles_path()
+
+
+def resolve_dm_mass_particle_msun_h(config: HaloscopeEnrichmentConfig) -> float:
+    """
+    Resolve the DM particle mass used for assembly-bias CIC deposition.
+
+    Parameters
+    ----------
+    config : HaloscopeEnrichmentConfig
+        Run configuration loaded from JSON or built programmatically.
+
+    Returns
+    -------
+    float
+        DM particle mass in Msun/h.
+    """
+    return float(config.pipeline_stages.tidal_anisotropy.mass_particle)
+
+
 def load_haloscope_enrichment_config(config_path: Path) -> HaloscopeEnrichmentConfig:
     """
     Load a Haloscope enrichment run configuration from JSON.
@@ -575,6 +708,7 @@ def load_haloscope_enrichment_config(config_path: Path) -> HaloscopeEnrichmentCo
     tidal = payload.get("tidal", {})
     validation = payload.get("validation", {})
     assembly_bias = validation.get("assembly_bias", {})
+    holdout_corner_plots = validation.get("holdout_corner_plots", {})
     output_dir = _required_path(paths.get("output_dir"), OUTPUT_DIR)
     pipeline_stages = _parse_pipeline_stages(payload, output_dir)
 
@@ -603,6 +737,7 @@ def load_haloscope_enrichment_config(config_path: Path) -> HaloscopeEnrichmentCo
         enriched_parquet_name=str(haloscope.get("enriched_parquet_name", ENRICHED_PARQUET_NAME)),
         run_assembly_bias_plot=bool(assembly_bias.get("enabled", False)),
         assembly_bias_n_grid=int(assembly_bias.get("n_grid", DEFAULT_ASSEMBLY_BIAS_N_GRID)),
+        run_holdout_corner_plots=bool(holdout_corner_plots.get("enabled", False)),
         collect_tables=bool(payload.get("collect_tables", False)),
     )
 
