@@ -10,7 +10,6 @@ import pandas as pd
 from density_field_properties.haloscope import (
     default_mass_bin_edges,
     enrich_fastpm_catalog,
-    holdout_validate_sim_bins,
 )
 from density_field_properties.pipelines.config import (
     HaloscopeEnrichmentConfig,
@@ -37,6 +36,10 @@ from density_field_properties.preprocessing.input_features.tidal_anisotropy impo
 from density_field_properties.validation.assembly_bias_panel import (
     write_tidal_assembly_bias_panel,
 )
+from density_field_properties.validation.holdout_corner_plots import (
+    write_sim_holdout_corner_plots,
+)
+from density_field_properties.validation.memory import release_validation_memory
 
 
 @dataclass
@@ -204,21 +207,26 @@ def run_haloscope_enrichment_from_tables(
             input_features=feature_names,
             mass_column_fastpm=run_result.mass_column_fastpm,
             assembly_bias_n_grid=config.assembly_bias_n_grid,
+            config=config,
         )
+        release_validation_memory()
         return run_result
 
     bin_edges = default_mass_bin_edges(np.log10(halos_sim["M200b"].max()))
     output_features = list(OUTPUT_FEATURES)
-    if config.run_holdout_validation:
-        holdout_validate_sim_bins(
+    if config.run_holdout_validation or config.run_holdout_corner_plots:
+        write_sim_holdout_corner_plots(
             halos_sim,
             bin_edges,
+            out_dir,
             input_features=feature_names,
             output_features=output_features,
             min_bin_size=config.min_bin_size,
+            write_plots=config.run_holdout_corner_plots,
         )
+        release_validation_memory()
 
-    enriched, _ = enrich_fastpm_catalog(
+    enriched, fitted_models = enrich_fastpm_catalog(
         halos_sim,
         halos_fastpm,
         bin_edges,
@@ -227,6 +235,9 @@ def run_haloscope_enrichment_from_tables(
         output_features=output_features,
         min_bin_size=config.min_bin_size,
     )
+    del fitted_models
+    release_validation_memory()
+
     predicted = enriched[list(output_features)].notna().all(axis=1).sum()
     if predicted == 0:
         raise RuntimeError(
@@ -253,7 +264,9 @@ def run_haloscope_enrichment_from_tables(
                 input_features=feature_names,
                 mass_column_fastpm=run_result.mass_column_fastpm,
                 assembly_bias_n_grid=config.assembly_bias_n_grid,
+                config=config,
             )
+            release_validation_memory()
         return run_result
     if config.run_assembly_bias_plot:
         write_tidal_assembly_bias_panel(
@@ -264,7 +277,9 @@ def run_haloscope_enrichment_from_tables(
             input_features=feature_names,
             mass_column_fastpm=mass_col_fastpm,
             assembly_bias_n_grid=config.assembly_bias_n_grid,
+            config=config,
         )
+        release_validation_memory()
     return out_parquet
 
 
