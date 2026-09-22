@@ -13,7 +13,10 @@ from density_field_properties.pipelines.config import (
     TidalAnisotropyStageConfig,
     TidalAnisotropyTargetConfig,
 )
-from density_field_properties.pipelines.haloscope_pipeline import run_haloscope_pipeline
+from density_field_properties.pipelines.haloscope_pipeline import (
+    _resolve_descriptor_dirs_from_pipeline,
+    run_haloscope_pipeline,
+)
 
 
 def _minimal_config(tmp_path: Path, stages: HaloscopePipelineStages) -> HaloscopeEnrichmentConfig:
@@ -83,6 +86,28 @@ def test_run_haloscope_pipeline_executes_tidal_targets_sequentially(tmp_path):
 
     assert processed_targets == ["unit", "fastpm"]
     assert result is None
+
+
+def test_resolve_descriptor_dirs_from_pipeline_work_dirs(tmp_path):
+    """
+    Tidal descriptor dirs should resolve from pipeline work dirs when unset.
+    """
+    unit_work = tmp_path / "unit_work"
+    fastpm_work = tmp_path / "fastpm_work"
+    stages = HaloscopePipelineStages(
+        tidal_anisotropy=TidalAnisotropyStageConfig(
+            enabled=False,
+            unit=TidalAnisotropyTargetConfig(work_dir=unit_work),
+            fastpm=TidalAnisotropyTargetConfig(work_dir=fastpm_work),
+        ),
+    )
+    config = _minimal_config(tmp_path, stages)
+    config.input_features = ("t_over_u", "tidal_anisotropy")
+
+    _resolve_descriptor_dirs_from_pipeline(config)
+
+    assert config.unit_descriptors_dir == unit_work / "tidal_anisotropy"
+    assert config.fastpm_descriptors_dir == fastpm_work / "tidal_anisotropy"
 
 
 def test_run_haloscope_pipeline_preprocess_only(tmp_path):

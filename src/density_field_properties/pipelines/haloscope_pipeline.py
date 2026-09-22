@@ -23,6 +23,9 @@ from density_field_properties.pipelines.tidal_anisotropy_run import (
     run_tidal_anisotropy_pipeline_for_target,
     tidal_anisotropy_output_dir,
 )
+from density_field_properties.preprocessing.input_features.tidal_anisotropy import (
+    TIDAL_ANISOTROPY_FEATURE_NAME,
+)
 
 
 def _target_settings(
@@ -75,7 +78,7 @@ def _halo_catalog_path(config: HaloscopeEnrichmentConfig, target_name: str) -> P
 
 def _apply_computed_descriptor_dirs(config: HaloscopeEnrichmentConfig) -> None:
     """
-    Point descriptor directories to freshly computed tidal-anisotropy outputs.
+    Point descriptor directories to pipeline work directories when unset.
 
     Parameters
     ----------
@@ -88,6 +91,20 @@ def _apply_computed_descriptor_dirs(config: HaloscopeEnrichmentConfig) -> None:
         config.unit_descriptors_dir = tidal_anisotropy_output_dir(unit_work_dir)
     if config.fastpm_descriptors_dir is None and fastpm_work_dir is not None:
         config.fastpm_descriptors_dir = tidal_anisotropy_output_dir(fastpm_work_dir)
+
+
+def _resolve_descriptor_dirs_from_pipeline(config: HaloscopeEnrichmentConfig) -> None:
+    """
+    Resolve tidal descriptor directories from pipeline target work dirs.
+
+    Parameters
+    ----------
+    config : HaloscopeEnrichmentConfig
+        Run configuration updated in place when tidal features are requested.
+    """
+    if TIDAL_ANISOTROPY_FEATURE_NAME not in config.input_features:
+        return
+    _apply_computed_descriptor_dirs(config)
 
 
 def run_tidal_anisotropy_stage(config: HaloscopeEnrichmentConfig) -> None:
@@ -132,8 +149,6 @@ def run_tidal_anisotropy_stage(config: HaloscopeEnrichmentConfig) -> None:
             read_tensor_from_disk=target.read_tensor_from_disk,
         )
         gc.collect()
-
-    _apply_computed_descriptor_dirs(config)
 
 
 def _needs_feature_tables(config: HaloscopeEnrichmentConfig) -> bool:
@@ -207,6 +222,8 @@ def run_haloscope_pipeline(
     stages = config.pipeline_stages
     if stages.tidal_anisotropy.enabled:
         run_tidal_anisotropy_stage(config)
+
+    _resolve_descriptor_dirs_from_pipeline(config)
 
     tables: Optional[tuple[pd.DataFrame, pd.DataFrame, str]] = None
     preprocess_paths: Optional[tuple[Path, Path]] = None
