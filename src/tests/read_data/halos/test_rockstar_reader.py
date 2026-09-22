@@ -56,6 +56,31 @@ def test_rockstar_reader_basic(tmp_path):
     assert np.all(hcat.halo_m200b == np.array([100.0, 200.0]))
 
 
+def test_rockstar_reader_respects_n_lines(tmp_path):
+    """
+    read_catalog should stop after the requested number of data rows.
+    """
+    txt = """# Comment
+0 10 0 0 0  1 2 3 4 5  39  1.0 2.0 3.0  100.0
+1 20 0 0 0  1 2 3 4 5  39  4.0 5.0 6.0  200.0
+2 30 0 0 0  1 2 3 4 5  39  7.0 8.0 9.0  300.0
+"""
+    catalog_path = tmp_path / "rockstar.txt"
+    catalog_path.write_text(txt, encoding="utf-8")
+
+    hcat = RockstarCatalogReader.read_catalog(
+        str(catalog_path),
+        n_lines=2,
+        halo_x_position=11,
+        halo_y_position=12,
+        halo_z_position=13,
+        halo_m200b_position=14,
+    )
+
+    assert hcat.n_halos == 2
+    assert np.all(hcat.halo_id == np.array([10, 20]))
+
+
 def test_rockstar_batch_generator(tmp_path):
     txt = """# Header
 #Omega_M = 0.3 ; Omega_L = 0.7 ; h0 = 0.6

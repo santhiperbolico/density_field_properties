@@ -197,6 +197,8 @@ class RockstarCatalogReader(HaloCatalogReader):
                     row = (halo_id, halo_x, halo_y, halo_z, m200b, rg)
 
                 results.append(row)
+                if n_lines is not None and len(results) >= n_lines:
+                    break
 
         results = HaloCatalogData(np.array(results), *positions)
         return results
