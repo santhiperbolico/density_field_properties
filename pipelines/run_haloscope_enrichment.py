@@ -21,6 +21,7 @@ Tidal smoke with assembly-bias PDF:
 import argparse
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -122,5 +123,7 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+    root = logging.getLogger()
+    root.setLevel(os.environ.get("LOGLEVEL", "INFO"))
+    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] [%(asctime)s] %(message)s")
     raise SystemExit(main(sys.argv[1:]))

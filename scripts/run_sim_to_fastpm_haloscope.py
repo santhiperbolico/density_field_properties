@@ -93,5 +93,8 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(levelname)s] [%(asctime)s] %(message)s",
+    )
     raise SystemExit(main(sys.argv[1:]))
