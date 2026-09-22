@@ -11,10 +11,10 @@ from density_field_properties.utils.stats import interpolated_ratio
 def plot_assembly_bias_env_panel(
     reference_lower_mass: np.ndarray,
     reference_lower_bias: np.ndarray,
-    reference_lower_scatter: np.ndarray,
+    reference_lower_sem: np.ndarray,
     reference_upper_mass: np.ndarray,
     reference_upper_bias: np.ndarray,
-    reference_upper_scatter: np.ndarray,
+    reference_upper_sem: np.ndarray,
     haloscope_lower_mass: np.ndarray,
     haloscope_lower_bias: np.ndarray,
     haloscope_upper_mass: np.ndarray,
@@ -27,9 +27,9 @@ def plot_assembly_bias_env_panel(
 
     Parameters
     ----------
-    reference_lower_mass, reference_lower_bias, reference_lower_scatter : np.ndarray
+    reference_lower_mass, reference_lower_bias, reference_lower_sem : np.ndarray
         HR lower-tail ``b_1(M)`` (red in the paper).
-    reference_upper_mass, reference_upper_bias, reference_upper_scatter : np.ndarray
+    reference_upper_mass, reference_upper_bias, reference_upper_sem : np.ndarray
         HR upper-tail ``b_1(M)`` (blue).
     haloscope_lower_mass, haloscope_lower_bias : np.ndarray
         LR+HALOSCOPE lower tail split by predicted properties.
@@ -65,8 +65,8 @@ def plot_assembly_bias_env_panel(
     )
     bias_axis.fill_between(
         reference_upper_mass,
-        reference_upper_bias - reference_upper_scatter,
-        reference_upper_bias + reference_upper_scatter,
+        reference_upper_bias - reference_upper_sem,
+        reference_upper_bias + reference_upper_sem,
         color="tab:blue",
         alpha=0.2,
     )
@@ -81,8 +81,8 @@ def plot_assembly_bias_env_panel(
     )
     bias_axis.fill_between(
         reference_lower_mass,
-        reference_lower_bias - reference_lower_scatter,
-        reference_lower_bias + reference_lower_scatter,
+        reference_lower_bias - reference_lower_sem,
+        reference_lower_bias + reference_lower_sem,
         color="tab:red",
         alpha=0.2,
     )

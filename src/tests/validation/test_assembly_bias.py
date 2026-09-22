@@ -101,8 +101,38 @@ def test_assembly_bias_curves_returns_finite_bins():
     properties = rng.normal(size=(800, 4))
     bin_edges = np.linspace(11.0, 13.0, 6)
     curves = assembly_bias_curves_for_catalog(mass, bias, properties, bin_edges)
-    lower_mass, lower_bias, _, upper_mass, upper_bias, _ = curves
-    assert len(lower_mass) == len(lower_bias)
-    assert len(upper_mass) == len(upper_bias)
+    lower_mass, lower_bias, lower_sem, upper_mass, upper_bias, upper_sem = curves
+    assert len(lower_mass) == len(lower_bias) == len(lower_sem)
+    assert len(upper_mass) == len(upper_bias) == len(upper_sem)
     assert np.all(lower_mass > 0.0)
     assert np.all(upper_mass > 0.0)
+    assert np.all(lower_sem >= 0.0)
+    assert np.all(upper_sem >= 0.0)
+
+
+def test_assembly_bias_curves_select_tails_within_each_mass_bin():
+    """Each populated mass bin should contribute upper and lower tail points."""
+    rng = np.random.default_rng(2)
+    n_per_bin = 400
+    bin_edges = np.linspace(11.0, 12.0, 3)
+    mass_low = 10 ** rng.uniform(11.0, 11.5, size=n_per_bin)
+    mass_high = 10 ** rng.uniform(11.5, 12.0, size=n_per_bin)
+    mass = np.concatenate([mass_low, mass_high])
+    log_mass = np.log10(mass)
+    concentration = 5.0 + 10.0 * (log_mass - 11.0) / (12.0 - 11.0)
+    spin = rng.normal(size=len(mass))
+    shape_a = rng.uniform(0.6, 0.9, size=len(mass))
+    shape_b = rng.uniform(0.7, 1.0, size=len(mass))
+    properties = np.column_stack([concentration, spin, shape_a, shape_b])
+    bias = 1.0 + 0.05 * concentration + 0.1 * rng.normal(size=len(mass))
+
+    lower_mass, _, _, upper_mass, _, _ = assembly_bias_curves_for_catalog(
+        mass,
+        bias,
+        properties,
+        bin_edges,
+    )
+
+    assert len(lower_mass) == 2
+    assert len(upper_mass) == 2
+    assert np.allclose(lower_mass, upper_mass)

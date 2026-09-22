@@ -5,7 +5,6 @@ from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
 from numpy.fft import irfftn, rfftn
-from scipy import stats
 
 from density_field_properties.environment_properties.cic.cic_deposit import (
     delta_field_from_dm_particles,
@@ -15,7 +14,7 @@ from density_field_properties.environment_properties.cic.cic_deposit import (
 )
 from density_field_properties.environment_properties.fourier.fourrier_transformations import kgrid
 from density_field_properties.read_data.particles import detect_dm_particle_format
-from density_field_properties.utils.stats import central_68_scatter
+from density_field_properties.utils.stats import standard_error_mean
 
 
 def solve_joint_percentile(
@@ -500,55 +499,23 @@ def _trilinear_sample_field(
     return samples
 
 
-def binned_mean_bias_with_scatter(
-    mass: np.ndarray,
-    bias: np.ndarray,
-    log_mass_bin_edges: np.ndarray,
-    mask: np.ndarray,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _geometric_mass_bin_center(log_mass_low: float, log_mass_high: float) -> float:
     """
-    Mean halo bias and 68% scatter per log10-mass bin.
+    Geometric center of a log10-mass bin.
 
     Parameters
     ----------
-    mass : np.ndarray
-        Halo masses (linear ``M200b`` in Msun/h).
-    bias : np.ndarray
-        Per-halo linear bias.
-    log_mass_bin_edges : np.ndarray
-        Bin edges in ``log10(M200b)``.
-    mask : np.ndarray
-        Boolean mask selecting haloes for this subsample.
+    log_mass_low : float
+        Lower log10-mass edge.
+    log_mass_high : float
+        Upper log10-mass edge.
 
     Returns
     -------
-    tuple[np.ndarray, np.ndarray, np.ndarray]
-        Mass bin centers, mean ``b_1``, and central 68% half-width per bin.
+    float
+        ``M`` at the midpoint of the bin in linear mass.
     """
-    log_mass = np.log10(mass)
-    selected_mass = log_mass[mask]
-    selected_bias = bias[mask]
-    mass_centers = stats.binned_statistic(
-        selected_mass,
-        selected_mass,
-        statistic="mean",
-        bins=log_mass_bin_edges,
-    )[0]
-    mean_bias = stats.binned_statistic(
-        selected_mass,
-        selected_bias,
-        statistic="mean",
-        bins=log_mass_bin_edges,
-    )[0]
-    scatter = stats.binned_statistic(
-        selected_mass,
-        selected_bias,
-        statistic=central_68_scatter,
-        bins=log_mass_bin_edges,
-    )[0]
-    geometric_mass = 10**mass_centers
-    valid = np.isfinite(geometric_mass) & np.isfinite(mean_bias)
-    return geometric_mass[valid], mean_bias[valid], scatter[valid]
+    return 10 ** (0.5 * (log_mass_low + log_mass_high))
 
 
 def assembly_bias_curves_for_catalog(
@@ -561,6 +528,10 @@ def assembly_bias_curves_for_catalog(
     """
     Upper and lower assembly-bias ``b_1(M)`` curves for one halo catalog.
 
+    Following Ramakrishnan et al. (2025), joint upper and lower tails are
+    selected independently within each equal-mass bin before averaging ``b_1``.
+    The returned error bands are the standard error of the mean in each bin.
+
     Parameters
     ----------
     mass : np.ndarray
@@ -572,22 +543,56 @@ def assembly_bias_curves_for_catalog(
     log_mass_bin_edges : np.ndarray
         Bin edges in ``log10(M200b)``.
     target_fraction : float, optional
-        Joint tail fraction (default 25%).
+        Joint tail fraction within each mass bin (default 25%).
 
     Returns
     -------
     tuple
-        ``lower_mass``, ``lower_bias``, ``lower_scatter``, ``upper_mass``, ``upper_bias``,
-        ``upper_scatter``.
+        ``lower_mass``, ``lower_bias``, ``lower_sem``, ``upper_mass``, ``upper_bias``,
+        ``upper_sem``.
     """
-    lower_mask, upper_mask, _ = joint_assembly_masks(property_matrix, target_fraction)
-    lower_mass, lower_bias, lower_scatter = binned_mean_bias_with_scatter(
-        mass, bias, log_mass_bin_edges, lower_mask
+    log_mass = np.log10(mass)
+    lower_mass = []
+    lower_bias = []
+    lower_sem = []
+    upper_mass = []
+    upper_bias = []
+    upper_sem = []
+
+    for bin_index in range(len(log_mass_bin_edges) - 1):
+        log_mass_low = log_mass_bin_edges[bin_index]
+        log_mass_high = log_mass_bin_edges[bin_index + 1]
+        in_bin = (log_mass >= log_mass_low) & (log_mass < log_mass_high)
+        if not np.any(in_bin):
+            continue
+
+        bin_bias = bias[in_bin]
+        bin_properties = property_matrix[in_bin]
+        lower_mask, upper_mask, _ = joint_assembly_masks(
+            bin_properties,
+            target_fraction=target_fraction,
+        )
+        lower_values = bin_bias[lower_mask]
+        upper_values = bin_bias[upper_mask]
+        if lower_values.size == 0 or upper_values.size == 0:
+            continue
+
+        mass_center = _geometric_mass_bin_center(log_mass_low, log_mass_high)
+        lower_mass.append(mass_center)
+        lower_bias.append(float(np.mean(lower_values)))
+        lower_sem.append(standard_error_mean(lower_values))
+        upper_mass.append(mass_center)
+        upper_bias.append(float(np.mean(upper_values)))
+        upper_sem.append(standard_error_mean(upper_values))
+
+    return (
+        np.asarray(lower_mass, dtype=np.float64),
+        np.asarray(lower_bias, dtype=np.float64),
+        np.asarray(lower_sem, dtype=np.float64),
+        np.asarray(upper_mass, dtype=np.float64),
+        np.asarray(upper_bias, dtype=np.float64),
+        np.asarray(upper_sem, dtype=np.float64),
     )
-    upper_mass, upper_bias, upper_scatter = binned_mean_bias_with_scatter(
-        mass, bias, log_mass_bin_edges, upper_mask
-    )
-    return lower_mass, lower_bias, lower_scatter, upper_mass, upper_bias, upper_scatter
 
 
 def attach_paranjape_bias(
