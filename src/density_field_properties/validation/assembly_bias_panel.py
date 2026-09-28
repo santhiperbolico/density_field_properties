@@ -1,14 +1,21 @@
 """Assembly-bias diagnostic panel for Haloscope inputs."""
 
 from pathlib import Path
-from typing import Sequence, Union
+from typing import Optional, Sequence, Union
 
 import numpy as np
 import pandas as pd
 
+from density_field_properties.haloscope.bins import default_mass_bin_edges
 from density_field_properties.pipelines.config import (
     ASSEMBLY_BIAS_TIDAL_PDF_NAME,
     DEFAULT_ASSEMBLY_BIAS_N_GRID,
+    HaloscopeEnrichmentConfig,
+    resolve_dm_mass_particle_msun_h,
+    resolve_fastpm_boxsize_mpc_h,
+    resolve_fastpm_dm_particles_path,
+    resolve_sim_boxsize_mpc_h,
+    resolve_sim_dm_particles_path,
 )
 from density_field_properties.pipelines.run_defaults import (
     ASSEMBLY_BIAS_DM_BATCH_SIZE,
@@ -28,10 +35,8 @@ from density_field_properties.validation.assembly_bias import (
     load_sim_matter_overdensity,
     property_matrix_from_frame,
 )
+from density_field_properties.validation.memory import release_validation_memory
 from density_field_properties.validation.plots import plot_assembly_bias_env_panel
-
-DEFAULT_ASSEMBLY_LOG_MASS_MIN = 11.5
-DEFAULT_ASSEMBLY_LOG_MASS_BINS = 10
 
 INPUT_FEATURE_PLOT_LABELS = {
     "env": "env",
@@ -70,6 +75,39 @@ def format_assembly_bias_panel_title(
     return f"input: {feature_text} " f"(HR δ: {sim_delta_mode}, FastPM δ: {fastpm_delta_mode})"
 
 
+def _resolve_assembly_bias_context(
+    config: Optional[HaloscopeEnrichmentConfig],
+) -> tuple[float, float, Optional[Path], Optional[Path], float]:
+    """
+    Resolve box sizes, DM paths, and particle mass for assembly-bias diagnostics.
+
+    Parameters
+    ----------
+    config : Optional[HaloscopeEnrichmentConfig]
+        Run configuration. When ``None``, production defaults from ``run_defaults`` apply.
+
+    Returns
+    -------
+    tuple[float, float, Optional[Path], Optional[Path], float]
+        SIM box size, FastPM box size, SIM DM path, FastPM DM path, and DM mass.
+    """
+    if config is None:
+        return (
+            SIM_BOXSIZE_MPC_H,
+            FASTPM_BOXSIZE_MPC_H,
+            default_sim_dm_particles_path(),
+            default_fastpm_dm_particles_path(),
+            DM_MASS_PARTICLE_MSUN_H,
+        )
+    return (
+        resolve_sim_boxsize_mpc_h(config),
+        resolve_fastpm_boxsize_mpc_h(config),
+        resolve_sim_dm_particles_path(config),
+        resolve_fastpm_dm_particles_path(config),
+        resolve_dm_mass_particle_msun_h(config),
+    )
+
+
 def write_tidal_assembly_bias_panel(
     halos_sim: pd.DataFrame,
     halos_fastpm_enriched: pd.DataFrame,
@@ -78,6 +116,7 @@ def write_tidal_assembly_bias_panel(
     input_features: Sequence[str],
     mass_column_fastpm: str = "M200b",
     assembly_bias_n_grid: int = DEFAULT_ASSEMBLY_BIAS_N_GRID,
+    config: Optional[HaloscopeEnrichmentConfig] = None,
 ) -> Path:
     """
     Build and save the HALOSCOPE-style assembly-bias panel.
@@ -98,6 +137,8 @@ def write_tidal_assembly_bias_panel(
         Mass column used for FastPM binning.
     assembly_bias_n_grid : int, optional
         Grid resolution for matter ``delta`` and Paranjape bias.
+    config : Optional[HaloscopeEnrichmentConfig], optional
+        Run configuration supplying box size and DM particle paths.
 
     Returns
     -------
@@ -107,31 +148,30 @@ def write_tidal_assembly_bias_panel(
     root = Path(repo_root)
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    log_mass_bins = np.linspace(
-        DEFAULT_ASSEMBLY_LOG_MASS_MIN,
-        np.log10(halos_sim["M200b"].max()),
-        DEFAULT_ASSEMBLY_LOG_MASS_BINS,
+    sim_boxsize_mpc_h, fastpm_boxsize_mpc_h, sim_dm_path, fastpm_dm_path, dm_mass_msun_h = (
+        _resolve_assembly_bias_context(config)
     )
+
+    log_mass_bins = default_mass_bin_edges(np.log10(halos_sim["M200b"].max()))
 
     sim_density_path, sim_density_info_path = default_sim_saved_cic_density_paths()
     fastpm_density_path, fastpm_density_info_path = default_fastpm_saved_cic_density_paths()
     delta_sim, sim_delta_mode = load_sim_matter_overdensity(
         root,
-        SIM_BOXSIZE_MPC_H,
+        sim_boxsize_mpc_h,
         assembly_bias_n_grid,
-        DM_MASS_PARTICLE_MSUN_H,
+        dm_mass_msun_h,
         dm_batch_size=ASSEMBLY_BIAS_DM_BATCH_SIZE,
-        dm_particles_path=default_sim_dm_particles_path(),
+        dm_particles_path=sim_dm_path,
         saved_density_path=sim_density_path,
         saved_density_info_path=sim_density_info_path,
     )
     delta_fastpm, fp_delta_mode = load_fastpm_matter_overdensity(
         root,
-        FASTPM_BOXSIZE_MPC_H,
+        fastpm_boxsize_mpc_h,
         assembly_bias_n_grid,
-        DM_MASS_PARTICLE_MSUN_H,
-        default_fastpm_dm_particles_path(),
+        dm_mass_msun_h,
+        fastpm_dm_path,
         dm_batch_size=ASSEMBLY_BIAS_DM_BATCH_SIZE,
         saved_density_path=fastpm_density_path,
         saved_density_info_path=fastpm_density_info_path,
@@ -145,19 +185,23 @@ def write_tidal_assembly_bias_panel(
     halos_fastpm_enriched = halos_fastpm_enriched.copy()
     halos_sim["b1"] = attach_paranjape_bias(
         halos_sim,
-        SIM_BOXSIZE_MPC_H,
+        sim_boxsize_mpc_h,
         n_grid=assembly_bias_n_grid,
         matter_delta_field=delta_sim,
     )
+    del delta_sim
+    release_validation_memory()
 
     fp_for_bias = halos_fastpm_enriched.dropna(subset=list(OUTPUT_FEATURES)).copy()
     halos_fastpm_enriched.loc[fp_for_bias.index, "b1"] = attach_paranjape_bias(
         fp_for_bias,
-        FASTPM_BOXSIZE_MPC_H,
+        fastpm_boxsize_mpc_h,
         n_grid=assembly_bias_n_grid,
         mass_column=mass_column_fastpm,
         matter_delta_field=delta_fastpm,
     )
+    del delta_fastpm
+    release_validation_memory()
     fp_for_bias = halos_fastpm_enriched.dropna(subset=["b1"] + list(OUTPUT_FEATURES)).copy()
     if len(fp_for_bias) == 0:
         raise RuntimeError(
@@ -193,4 +237,6 @@ def write_tidal_assembly_bias_panel(
         ),
         output_path=str(output_path),
     )
+    del hr_props, lr_props, hr_curves, lr_curves, fp_for_bias
+    release_validation_memory()
     return output_path

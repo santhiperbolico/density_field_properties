@@ -2,10 +2,17 @@
 
 import numpy as np
 
+DEFAULT_LOG_MASS_BIN_MIN = 11.5
+DEFAULT_LOG_MASS_N_EDGES = 10
+
 
 def default_mass_bin_edges(log_m200b_max: float) -> np.ndarray:
     """
-    Default log10(M200b) bin edges for Haloscope fits.
+    Default log10(M200b) bin edges for Haloscope fits and assembly-bias panels.
+
+    Nine equal-width bins in log10 from ``DEFAULT_LOG_MASS_BIN_MIN`` to the
+    sample maximum, aligned with the assembly-bias diagnostic in
+    Ramakrishnan et al. (2025).
 
     Parameters
     ----------
@@ -15,9 +22,13 @@ def default_mass_bin_edges(log_m200b_max: float) -> np.ndarray:
     Returns
     -------
     np.ndarray
-        Bin edges with length ``n_bins + 1``.
+        Bin edges with length ``DEFAULT_LOG_MASS_N_EDGES``.
     """
-    return np.array([10.0, 10.8, 11.6, 12.6, log_m200b_max])
+    return np.linspace(
+        DEFAULT_LOG_MASS_BIN_MIN,
+        log_m200b_max,
+        DEFAULT_LOG_MASS_N_EDGES,
+    )
 
 
 def mask_mass_bin(log_mass: np.ndarray, low: float, high: float) -> np.ndarray:

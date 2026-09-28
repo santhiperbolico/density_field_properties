@@ -1,0 +1,33 @@
+{
+  "run_name": "haloscope_local_sample_tidal_unit",
+  "paths": {
+    "sim_hlist": "output/local_sample/unitsim/hlist_1.00000.list",
+    "fastpm_list": "output/local_sample/fastpm/rockstar_out_nbody/out_8.list",
+    "repo_root": ".",
+    "output_dir": "output/local_sample_haloscope_run"
+  },
+  "sample": {
+    "box_size_mpc_h": 200,
+    "max_sim_halos": 20000
+  },
+  "haloscope": {
+    "input_features": ["t_over_u", "tidal_anisotropy"]
+  },
+  "tidal": {
+    "n_grid": 512
+  },
+  "pipeline": {
+    "tidal_anisotropy": {
+      "enabled": true,
+      "targets": ["unit"],
+      "descriptor_batch_size": 50000,
+      "unit": {
+        "dm_particles_file": "output/local_sample/unitsim/dm_particles_0.5_128.dat",
+        "work_dir": "output/local_sample_haloscope_run/unit",
+        "catalog_layout": "hlist"
+      }
+    },
+    "preprocess": {"enabled": false},
+    "haloscope": {"enabled": false}
+  }
+}

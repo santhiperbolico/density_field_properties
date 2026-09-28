@@ -18,6 +18,7 @@ __all__ = [
     "HaloscopeEnrichmentRun",
     "load_haloscope_enrichment_config",
     "run_haloscope_enrichment_pipeline",
+    "run_haloscope_pipeline",
     "write_tidal_assembly_bias_panel",
 ]
 
@@ -53,6 +54,10 @@ def __getattr__(name: str):
         )
 
         return run_haloscope_enrichment_pipeline
+    if name == "run_haloscope_pipeline":
+        from density_field_properties.pipelines.haloscope_pipeline import run_haloscope_pipeline
+
+        return run_haloscope_pipeline
     if name == "write_tidal_assembly_bias_panel":
         from density_field_properties.validation.assembly_bias_panel import (
             write_tidal_assembly_bias_panel,

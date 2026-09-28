@@ -75,6 +75,7 @@ def _tidal_anisotropy_and_overdensity_from_halo_calaog_batches(
     box_size: int,
     batch_size: int,
     n_lines: Optional[int] = None,
+    catalog_column_kwargs: Optional[dict[str, int]] = None,
     **save_params,
 ) -> str:
     """
@@ -115,6 +116,7 @@ def _tidal_anisotropy_and_overdensity_from_halo_calaog_batches(
     if n_lines is None:
         n_lines = np.inf
 
+    reader_kwargs = catalog_column_kwargs or {}
     offset = 0
     batch_index = 0
     lines_readed = 0
@@ -122,6 +124,7 @@ def _tidal_anisotropy_and_overdensity_from_halo_calaog_batches(
         halo_catalog_path,
         batch_size=batch_size,
         start_offset=offset,
+        **reader_kwargs,
     ):
         logging.info(
             "Batch %i: %i halos, offset start=%i"
@@ -163,6 +166,7 @@ def _tidal_anisotropy_and_overdensity_from_halo_calaog_complete(
     n_grid: int,
     box_size: int,
     n_lines: Optional[int] = None,
+    catalog_column_kwargs: Optional[dict[str, int]] = None,
     **save_params,
 ) -> str:
     """
@@ -201,7 +205,12 @@ def _tidal_anisotropy_and_overdensity_from_halo_calaog_complete(
     r_min = np.array(tidal_tensor_array.gaussian_scale_list).min()
     r_max = np.array(tidal_tensor_array.gaussian_scale_list).max()
 
-    halo_data = halo_catalog.read_catalog(path=halo_catalog_path, n_lines=n_lines)
+    reader_kwargs = catalog_column_kwargs or {}
+    halo_data = halo_catalog.read_catalog(
+        path=halo_catalog_path,
+        n_lines=n_lines,
+        **reader_kwargs,
+    )
 
     halo_data = format_halo_catalog(halo_data, box_size, n_grid, r_min, r_max)
     tidal_anisotropy, overdensity = tidal_tensor_array.get_tidal_anisotropy_and_overdensity(
@@ -229,6 +238,7 @@ def tidal_anisotropy_and_overdensity_from_halo_calaog(
     box_size: int,
     n_lines: Optional[int] = None,
     batch_size: Optional[int] = None,
+    catalog_column_kwargs: Optional[dict[str, int]] = None,
 ) -> str:
     """
     Calculates tidal anisotropy and overdensity from a halo catalog, iterating through
@@ -282,6 +292,7 @@ def tidal_anisotropy_and_overdensity_from_halo_calaog(
             box_size=box_size,
             n_lines=n_lines,
             batch_size=batch_size,
+            catalog_column_kwargs=catalog_column_kwargs,
         )
 
     return _tidal_anisotropy_and_overdensity_from_halo_calaog_complete(
@@ -292,4 +303,5 @@ def tidal_anisotropy_and_overdensity_from_halo_calaog(
         n_grid=n_grid,
         box_size=box_size,
         n_lines=n_lines,
+        catalog_column_kwargs=catalog_column_kwargs,
     )

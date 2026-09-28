@@ -26,6 +26,9 @@
     "assembly_bias": {
       "enabled": true,
       "n_grid": 128
+    },
+    "holdout_corner_plots": {
+      "enabled": true
     }
   },
   "collect_tables": false

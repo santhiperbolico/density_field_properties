@@ -44,13 +44,14 @@ def test_mask_mass_bin(low, high, values, expected):
     assert mask.tolist() == expected
 
 
-def test_default_mass_bin_edges_ends_at_sample_max():
+def test_default_mass_bin_edges_match_assembly_bias_grid():
     """
-    The last bin edge must match the training sample maximum in log10.
+    Haloscope and assembly-bias diagnostics must share the same log-mass grid.
     """
     edges = default_mass_bin_edges(13.2)
+    assert edges[0] == 11.5
     assert edges[-1] == 13.2
-    assert len(edges) == 5
+    assert len(edges) == 10
 
 
 def test_fit_and_predict_models_on_synthetic_tables():
