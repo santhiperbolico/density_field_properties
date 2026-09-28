@@ -16,6 +16,7 @@ from density_field_properties.preprocessing.mass_calibration_config import (
     MassCalibrationConfig,
     MatchingHyperparameters,
 )
+from density_field_properties.preprocessing.mass_calibration_ml import apply_matching_ml
 
 
 def abundance_match_mass(mass_target: np.ndarray, mass_reference: np.ndarray) -> np.ndarray:
@@ -177,10 +178,8 @@ def apply_mass_calibration(
         return lr_catalog, config.calibrated_column
 
     if config.method == MASS_CALIBRATION_METHOD_MATCHING_ML:
-        raise ValueError(
-            "Mass calibration method 'matching_ml' is not implemented yet; "
-            "use 'abundance_matching' or wait for Phase 3."
-        )
+        apply_matching_ml(lr_catalog, hr_catalog, config, box_size_mpc_h)
+        return lr_catalog, config.calibrated_column
 
     raise ValueError(f"Unknown mass calibration method: {config.method}")
 
