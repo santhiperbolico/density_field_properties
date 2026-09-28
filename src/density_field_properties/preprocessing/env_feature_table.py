@@ -10,6 +10,9 @@ from density_field_properties.preprocessing.context import (
     SimulationRunContext,
 )
 from density_field_properties.preprocessing.feature_table import build_feature_tables
+from density_field_properties.preprocessing.mass_calibration_config import (
+    default_mass_calibration_config,
+)
 
 warnings.warn(
     "preprocessing.env_feature_table is deprecated; use preprocessing.feature_table",
@@ -61,6 +64,6 @@ def build_env_feature_tables(
             boxsize_mpc_h=fastpm_boxsize_mpc_h,
             env_radius_mpc_h=env_radius_mpc_h,
         ),
-        calibrate_mass=calibrate_mass,
+        mass_calibration=default_mass_calibration_config(enabled=calibrate_mass),
     )
     return build_feature_tables(halos_sim, halos_fastpm, input_features, context)

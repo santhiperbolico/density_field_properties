@@ -7,6 +7,9 @@ from density_field_properties.preprocessing.context import (
     SimulationRunContext,
 )
 from density_field_properties.preprocessing.feature_table import build_feature_tables
+from density_field_properties.preprocessing.mass_calibration_config import (
+    default_mass_calibration_config,
+)
 
 
 def _sim_catalog() -> pd.DataFrame:
@@ -40,7 +43,7 @@ def _env_context(calibrate_mass: bool) -> PreprocessingContext:
     return PreprocessingContext(
         sim=SimulationRunContext(boxsize_mpc_h=1000.0, env_radius_mpc_h=5.0),
         fastpm=SimulationRunContext(boxsize_mpc_h=1000.0, env_radius_mpc_h=5.0),
-        calibrate_mass=calibrate_mass,
+        mass_calibration=default_mass_calibration_config(enabled=calibrate_mass),
     )
 
 

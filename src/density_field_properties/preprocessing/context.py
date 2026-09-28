@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from density_field_properties.preprocessing.mass_calibration_config import MassCalibrationConfig
+
 
 @dataclass
 class SimulationRunContext:
@@ -42,18 +44,30 @@ class PreprocessingContext:
         Context for the high-resolution training simulation.
     fastpm : SimulationRunContext
         Context for the low-resolution target simulation.
-    calibrate_mass : bool
-        Whether to abundance-match LR masses to HR.
+    mass_calibration : MassCalibrationConfig
+        LR mass calibration method and parameters.
     """
 
     sim: SimulationRunContext
     fastpm: SimulationRunContext
-    calibrate_mass: bool
+    mass_calibration: MassCalibrationConfig
+
+    @property
+    def calibrate_mass(self) -> bool:
+        """
+        Whether LR mass calibration is enabled (legacy alias).
+
+        Returns
+        -------
+        bool
+            ``mass_calibration.enabled``.
+        """
+        return self.mass_calibration.enabled
 
 
 def build_preprocessing_context(
     repo_root: Path,
-    calibrate_mass: bool,
+    mass_calibration: MassCalibrationConfig,
     sim_boxsize_mpc_h: float,
     fastpm_boxsize_mpc_h: float,
     env_radius_mpc_h: float,
@@ -69,8 +83,8 @@ def build_preprocessing_context(
     ----------
     repo_root : Path
         Repository root used to resolve relative descriptor directories.
-    calibrate_mass : bool
-        Whether to abundance-match LR masses to HR.
+    mass_calibration : MassCalibrationConfig
+        LR mass calibration settings for Haloscope preprocessing.
     sim_boxsize_mpc_h : float
         SIM periodic box side in Mpc/h.
     fastpm_boxsize_mpc_h : float
@@ -108,7 +122,7 @@ def build_preprocessing_context(
             tidal_n_grid=tidal_n_grid,
             max_descriptor_batch_files=max_descriptor_batch_files,
         ),
-        calibrate_mass=calibrate_mass,
+        mass_calibration=mass_calibration,
     )
 
 

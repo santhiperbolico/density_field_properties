@@ -8,6 +8,9 @@ import pandas as pd
 
 from density_field_properties.preprocessing.context import build_preprocessing_context
 from density_field_properties.preprocessing.feature_table import build_feature_tables
+from density_field_properties.preprocessing.mass_calibration_config import (
+    default_mass_calibration_config,
+)
 
 warnings.warn(
     "preprocessing.tidal_feature_table is deprecated; use preprocessing.feature_table",
@@ -61,7 +64,7 @@ def build_tidal_feature_tables(
     """
     context = build_preprocessing_context(
         repo_root=Path.cwd(),
-        calibrate_mass=calibrate_mass,
+        mass_calibration=default_mass_calibration_config(enabled=calibrate_mass),
         sim_boxsize_mpc_h=sim_boxsize_mpc_h,
         fastpm_boxsize_mpc_h=fastpm_boxsize_mpc_h,
         env_radius_mpc_h=5.0,

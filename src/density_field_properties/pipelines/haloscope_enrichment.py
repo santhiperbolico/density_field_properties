@@ -17,7 +17,6 @@ from density_field_properties.pipelines.config import (
     resolve_sim_boxsize_mpc_h,
 )
 from density_field_properties.pipelines.run_defaults import (
-    CALIBRATE_MASS,
     ENV_RADIUS_MPC_H,
     INPUT_FEATURES,
     OUTPUT_FEATURES,
@@ -137,7 +136,7 @@ def build_haloscope_feature_tables(
     )
     preprocessing_context = build_preprocessing_context(
         repo_root=root,
-        calibrate_mass=CALIBRATE_MASS,
+        mass_calibration=config.mass_calibration,
         sim_boxsize_mpc_h=resolve_sim_boxsize_mpc_h(config),
         fastpm_boxsize_mpc_h=resolve_fastpm_boxsize_mpc_h(config),
         env_radius_mpc_h=ENV_RADIUS_MPC_H,

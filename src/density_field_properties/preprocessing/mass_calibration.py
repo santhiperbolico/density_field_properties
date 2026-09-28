@@ -4,6 +4,14 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
+from density_field_properties.preprocessing.mass_calibration_config import (
+    MASS_CALIBRATION_METHOD_ABUNDANCE,
+    MASS_CALIBRATION_METHOD_MATCHING_1TO1,
+    MASS_CALIBRATION_METHOD_MATCHING_ML,
+    MassCalibrationConfig,
+    MatchingHyperparameters,
+)
+
 
 def abundance_match_mass(mass_target: np.ndarray, mass_reference: np.ndarray) -> np.ndarray:
     """
@@ -25,6 +33,97 @@ def abundance_match_mass(mass_target: np.ndarray, mass_reference: np.ndarray) ->
     reference_sorted = np.sort(mass_reference)
     quantile_reference = (np.arange(len(reference_sorted)) + 1) / (len(reference_sorted) + 1)
     return np.interp(quantile_target, quantile_reference, reference_sorted)
+
+
+def _apply_abundance_matching(
+    lr_catalog: pd.DataFrame,
+    hr_catalog: pd.DataFrame,
+    config: MassCalibrationConfig,
+) -> pd.DataFrame:
+    """
+    Write abundance-matched masses on the LR catalog.
+
+    Parameters
+    ----------
+    lr_catalog : pd.DataFrame
+        Low-resolution target catalog.
+    hr_catalog : pd.DataFrame
+        High-resolution reference catalog.
+    config : MassCalibrationConfig
+        Calibration settings including column names.
+
+    Returns
+    -------
+    pd.DataFrame
+        ``lr_catalog`` with ``config.calibrated_column`` populated.
+
+    Raises
+    ------
+    ValueError
+        If either mass sample is empty.
+    """
+    lr_masses = lr_catalog[config.matching.lr_mass_column].to_numpy()
+    hr_masses = hr_catalog[config.matching.hr_mass_column].to_numpy()
+    if len(lr_masses) == 0 or len(hr_masses) == 0:
+        raise ValueError("Empty HR or LR mass sample for abundance matching.")
+    lr_catalog[config.calibrated_column] = abundance_match_mass(lr_masses, hr_masses)
+    lr_catalog["mass_calib_method"] = MASS_CALIBRATION_METHOD_ABUNDANCE
+    return lr_catalog
+
+
+def apply_mass_calibration(
+    lr_catalog: pd.DataFrame,
+    hr_catalog: pd.DataFrame,
+    config: MassCalibrationConfig,
+    box_size_mpc_h: float,
+) -> tuple[pd.DataFrame, str]:
+    """
+    Calibrate LR halo masses for Haloscope bin assignment.
+
+    Parameters
+    ----------
+    lr_catalog : pd.DataFrame
+        Low-resolution target catalog (FastPM).
+    hr_catalog : pd.DataFrame
+        High-resolution training catalog (UNIT).
+    config : MassCalibrationConfig
+        Method key and hyperparameters.
+    box_size_mpc_h : float
+        Periodic box side in Mpc/h (used by spatial matching methods).
+
+    Returns
+    -------
+    tuple[pd.DataFrame, str]
+        The same ``lr_catalog`` instance and the mass column for bin assignment.
+
+    Raises
+    ------
+    ValueError
+        If the method is unknown or not yet implemented.
+    """
+    lr_mass_column = config.matching.lr_mass_column
+    if not config.enabled:
+        return lr_catalog, lr_mass_column
+
+    _ = box_size_mpc_h
+
+    if config.method == MASS_CALIBRATION_METHOD_ABUNDANCE:
+        _apply_abundance_matching(lr_catalog, hr_catalog, config)
+        return lr_catalog, config.calibrated_column
+
+    if config.method == MASS_CALIBRATION_METHOD_MATCHING_1TO1:
+        raise ValueError(
+            "Mass calibration method 'matching_1to1' is not implemented yet; "
+            "use 'abundance_matching' or wait for Phase 2."
+        )
+
+    if config.method == MASS_CALIBRATION_METHOD_MATCHING_ML:
+        raise ValueError(
+            "Mass calibration method 'matching_ml' is not implemented yet; "
+            "use 'abundance_matching' or wait for Phase 3."
+        )
+
+    raise ValueError(f"Unknown mass calibration method: {config.method}")
 
 
 def calibrate_lr_mass(
@@ -58,11 +157,13 @@ def calibrate_lr_mass(
     tuple[pd.DataFrame, str]
         The same ``lr_catalog`` instance and the mass column for bin assignment.
     """
-    if not calibrate_mass:
-        return lr_catalog, lr_mass_column
-
-    lr_catalog[calibrated_column] = abundance_match_mass(
-        lr_catalog[lr_mass_column].to_numpy(),
-        hr_catalog[hr_mass_column].to_numpy(),
+    config = MassCalibrationConfig(
+        enabled=calibrate_mass,
+        method=MASS_CALIBRATION_METHOD_ABUNDANCE,
+        calibrated_column=calibrated_column,
+        matching=MatchingHyperparameters(
+            lr_mass_column=lr_mass_column,
+            hr_mass_column=hr_mass_column,
+        ),
     )
-    return lr_catalog, calibrated_column
+    return apply_mass_calibration(lr_catalog, hr_catalog, config, box_size_mpc_h=0.0)

@@ -11,7 +11,7 @@ from density_field_properties.preprocessing.context import (
 from density_field_properties.preprocessing.filters import filter_finite_input_features
 from density_field_properties.preprocessing.input_features.base import InputFeatureAttacher
 from density_field_properties.preprocessing.input_features.registry import resolve_attachers
-from density_field_properties.preprocessing.mass_calibration import calibrate_lr_mass
+from density_field_properties.preprocessing.mass_calibration import apply_mass_calibration
 from density_field_properties.preprocessing.schemas import (
     validate_hr_training_table,
     validate_lr_target_table,
@@ -91,15 +91,16 @@ def build_feature_tables(
             "check catalogs, descriptor directories, and batch limits."
         )
 
-    lr_table, mass_column = calibrate_lr_mass(
+    lr_table, mass_column = apply_mass_calibration(
         lr_table,
         hr_table,
-        context.calibrate_mass,
+        context.mass_calibration,
+        box_size_mpc_h=context.fastpm.boxsize_mpc_h,
     )
     validate_hr_training_table(hr_table, input_features)
     validate_lr_target_table(
         lr_table,
         input_features,
-        calibrate_mass=context.calibrate_mass,
+        calibrate_mass=context.mass_calibration.enabled,
     )
     return hr_table, lr_table, mass_column

@@ -16,7 +16,7 @@ UNIT_ROCKSTAR_DIR = UNIT_SIM_ROOT / "ROCKSTAR"
 UNIT_ROCKSTAR_LIST_NAME = "out_128p.list.bz2"
 
 ENV_RADIUS_MPC_H = 5.0
-CALIBRATE_MASS = True
+CALIBRATE_MASS = True  # default mass_calibration.enabled when JSON omits mass_calibration
 
 DM_MASS_PARTICLE_MSUN_H = 1.2e9
 MIN_M200B_TIMES_MP = 20.0
