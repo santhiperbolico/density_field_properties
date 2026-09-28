@@ -23,6 +23,9 @@ sample:
   min_m200b_times_mp: 20.0
   dm_mass_particle_msun_h: 1.2e9
 
+# JSON runs use ``mass_calibration`` (see config/haloscope_run_env_smoke.json). Methods:
+#   abundance_matching | matching_1to1 | matching_ml
+# Smoke template for 1:1 matching: config/haloscope_run_matching_1to1_smoke.json
 haloscope:
   calibrate_mass: true
   mass_calibration_method: abundance_matching

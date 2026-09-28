@@ -102,5 +102,6 @@ def build_feature_tables(
         lr_table,
         input_features,
         calibrate_mass=context.mass_calibration.enabled,
+        calibrated_mass_column=context.mass_calibration.calibrated_column,
     )
     return hr_table, lr_table, mass_column

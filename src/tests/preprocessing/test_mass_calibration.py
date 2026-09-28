@@ -2,7 +2,6 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
 from density_field_properties.preprocessing.mass_calibration import (
     abundance_match_mass,
@@ -10,8 +9,6 @@ from density_field_properties.preprocessing.mass_calibration import (
     calibrate_lr_mass,
 )
 from density_field_properties.preprocessing.mass_calibration_config import (
-    MASS_CALIBRATION_METHOD_MATCHING_1TO1,
-    MassCalibrationConfig,
     default_mass_calibration_config,
 )
 
@@ -57,20 +54,6 @@ def test_apply_mass_calibration_dispatch_matches_legacy_abundance_matching():
     )
     assert legacy_column == dispatched_column
     pd.testing.assert_series_equal(legacy_lr["M200b_cal"], dispatched_lr["M200b_cal"])
-
-
-def test_apply_mass_calibration_rejects_unimplemented_matching_1to1():
-    """
-    ``matching_1to1`` should raise until Phase 2 is implemented.
-    """
-    hr = pd.DataFrame({"M200b": [1.0e12], "x": [1.0], "y": [1.0], "z": [1.0]})
-    lr = pd.DataFrame({"M200b": [9.0e11], "x": [2.0], "y": [2.0], "z": [2.0]})
-    config = MassCalibrationConfig(
-        enabled=True,
-        method=MASS_CALIBRATION_METHOD_MATCHING_1TO1,
-    )
-    with pytest.raises(ValueError, match="matching_1to1"):
-        apply_mass_calibration(lr, hr, config, box_size_mpc_h=1000.0)
 
 
 def test_mass_calibration_disabled_keeps_lr_mass_column():
