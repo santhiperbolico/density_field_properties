@@ -1,0 +1,14 @@
+{
+  "preset": "taurus_full",
+  "box_size_mpc_h": 1000.0,
+  "output_dir": "output/hmf_four_catalogs_taurus",
+  "output_stem": "hmf_four_catalogs_taurus_full",
+  "plot_title": "MN5 full box HMF (four catalogs)",
+  "fof_group": "LL-0.200",
+  "catalogs": {
+    "unit_hlist": "/data5/UNITSIM/fixedAmp_InvPhase_001/ROCKSTAR/outputs/hlists/hlist_1.00000.list.bz2",
+    "fastpm_nbody_list": "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/rockstar_out_nbody/out_8.list",
+    "fastpm_pm_list": "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/rockstar_out_pm/out_8.list",
+    "fastpm_fof": "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/output_01/fof_1.0000/LL-0.200"
+  }
+}

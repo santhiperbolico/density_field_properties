@@ -1,0 +1,14 @@
+{
+  "preset": "local_sample",
+  "local_sample_dir": "output/local_sample",
+  "output_dir": "output/local_sample_hmf_four_catalogs",
+  "output_stem": "hmf_four_catalogs_local_sample",
+  "plot_title": "local_sample HMF (four catalogs)",
+  "fof_group": "LL-0.200",
+  "catalogs": {
+    "unit_hlist": "output/local_sample/unitsim/hlist_1.00000.list",
+    "fastpm_nbody_list": "output/local_sample/fastpm/rockstar_out_nbody/out_8.list",
+    "fastpm_pm_list": "output/local_sample/fastpm/rockstar_out_pm/out_8.list",
+    "fastpm_fof": "output/local_sample/fastpm/fof_1.0000/LL-0.200"
+  }
+}
