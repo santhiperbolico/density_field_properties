@@ -32,6 +32,10 @@ UNIT_HEADER_WITH_PID = (
     "b_to_a c_to_a A[x] A[y] A[z] M_pe_Behroozi PID"
 )
 
+HLIST_SCHEMA_HEADER = (
+    "#scale(0) id(1) desc_scale(2) desc_id(3) num_prog(4) pid(5) upid(6) " "M200b(39)"
+)
+
 
 def _fastpm_row(halo_id, x, y, z, mass):
     columns = ["0"] * 55
@@ -64,6 +68,35 @@ def test_rockstar_header_column_names_reads_id_line(tmp_path):
     assert header is not None
     assert header[0] == "ID"
     assert "PID" not in header
+
+
+def test_rockstar_header_column_names_reads_hlist_schema_line(tmp_path):
+    path = tmp_path / "hlist_1.00000.list"
+    path.write_text(
+        HLIST_SCHEMA_HEADER + "\n#Omega_M = 0.308900; Omega_L = 0.691100; h0 = 0.677400\n",
+        encoding="utf-8",
+    )
+    header = read_rockstar_id_header_column_names(str(path))
+    assert header is not None
+    assert header[0] == "scale(0)"
+    assert "pid(5)" in header
+
+
+def test_rockstar_pid_column_index_reads_hlist_pid_field(tmp_path):
+    path = tmp_path / "hlist_1.00000.list"
+    path.write_text(HLIST_SCHEMA_HEADER + "\n", encoding="utf-8")
+    assert rockstar_pid_column_index(str(path)) == 5
+
+
+def test_rockstar_pid_column_index_short_find_parents_output(tmp_path):
+    header = FASTPM_HEADER + " PID"
+    columns = ["0"] * 41
+    columns[0] = "1"
+    columns[20] = "1e12"
+    columns[40] = "-1"
+    path = tmp_path / "out_8_with_pid.list"
+    path.write_text(header + "\n" + " ".join(columns) + "\n", encoding="utf-8")
+    assert rockstar_pid_column_index(str(path)) == 40
 
 
 def test_rockstar_pid_column_index_uses_header(tmp_path):
