@@ -1,5 +1,6 @@
 import bz2
 import logging
+import re
 from pathlib import Path
 from typing import Generator, Optional, Tuple
 
@@ -7,6 +8,7 @@ import numpy as np
 
 from density_field_properties.cosmology import Cosmology
 from density_field_properties.read_data.halos.base import HaloCatalogData, HaloCatalogReader
+from density_field_properties.read_data.halos.column_maps import ROCKSTAR_LIST_COLUMNS
 
 ROCKSTAR_HALO_COLUMNS_POSITION = {
     "halo_id": 1,
@@ -142,33 +144,50 @@ def read_rockstar_cosmology_header(path: str) -> Optional[Cosmology]:
         return None
 
 
-def read_rockstar_id_header_column_names(path: str) -> Optional[list[str]]:
+_HLIST_FIELD_TOKEN = re.compile(r"^(?P<name>.+)\((?P<index>\d+)\)$", re.IGNORECASE)
+_HLIST_SCHEMA_START = re.compile(r"^\w+\(\d+\)$", re.IGNORECASE)
+
+
+def _is_hlist_schema_header_line(tokens: list[str]) -> bool:
     """
-    Return column names from the first Rockstar header line starting with ``#ID``.
+    Return whether tokens form a consistent-trees ``name(index)`` schema line.
 
     Parameters
     ----------
-    path : str
-        Path to a Rockstar ``.list`` or ``.list.bz2`` file.
+    tokens : list[str]
+        Header tokens after the leading ``#``.
 
     Returns
     -------
-    Optional[list[str]]
-        Header tokens after the leading ``#``, or ``None`` when no ``#ID`` line exists.
+    bool
+        True when the first token matches ``scale(0)``-style hlist fields.
     """
-    with _open_rockstar_catalog_file(path) as handle:
-        for line in handle:
-            if not line.startswith("#"):
-                break
-            tokens = line[1:].strip().split()
-            if tokens and tokens[0] == "ID":
-                return tokens
-    return None
+    return bool(tokens) and _HLIST_SCHEMA_START.match(tokens[0]) is not None
 
 
-def rockstar_pid_column_index(path: str) -> Optional[int]:
+def _parse_hlist_field_token(token: str) -> Optional[tuple[str, int]]:
     """
-    Return the 0-based ``PID`` column index when the Rockstar header lists it.
+    Parse one consistent-trees header token into a field name and column index.
+
+    Parameters
+    ----------
+    token : str
+        Token such as ``pid(5)`` or ``M200b(39)``.
+
+    Returns
+    -------
+    Optional[tuple[str, int]]
+        Lowercase field name and 0-based index, or ``None`` when not matched.
+    """
+    match = _HLIST_FIELD_TOKEN.match(token)
+    if match is None:
+        return None
+    return match.group("name").lower(), int(match.group("index"))
+
+
+def _rockstar_first_data_row_width(path: str) -> Optional[int]:
+    """
+    Return the number of whitespace-separated fields in the first data row.
 
     Parameters
     ----------
@@ -178,15 +197,78 @@ def rockstar_pid_column_index(path: str) -> Optional[int]:
     Returns
     -------
     Optional[int]
-        Index of ``PID`` in the header, or ``None`` when the column is absent.
+        Column count for the first non-comment row, or ``None`` when missing.
+    """
+    with _open_rockstar_catalog_file(path) as handle:
+        for line in handle:
+            if line.startswith("#") or not line.strip():
+                continue
+            return len(line.split())
+    return None
+
+
+def read_rockstar_id_header_column_names(path: str) -> Optional[list[str]]:
+    """
+    Return column names from the catalog schema header line.
+
+    Supports Rockstar ``#ID ...`` lines and consistent-trees ``#scale(0) id(1) ...``.
+
+    Parameters
+    ----------
+    path : str
+        Path to a Rockstar ``.list`` or ``.list.bz2`` file.
+
+    Returns
+    -------
+    Optional[list[str]]
+        Header tokens after the leading ``#``, or ``None`` when no schema line exists.
+    """
+    with _open_rockstar_catalog_file(path) as handle:
+        for line in handle:
+            if not line.startswith("#"):
+                break
+            tokens = line[1:].strip().split()
+            if not tokens:
+                continue
+            if tokens[0].upper() == "ID":
+                return tokens
+            if _is_hlist_schema_header_line(tokens):
+                return tokens
+    return None
+
+
+def rockstar_pid_column_index(path: str) -> Optional[int]:
+    """
+    Return the 0-based parent-halo column index when the catalog header defines it.
+
+    Parameters
+    ----------
+    path : str
+        Path to a Rockstar ``.list`` or ``.list.bz2`` file.
+
+    Returns
+    -------
+    Optional[int]
+        Index of ``PID`` / ``pid`` in data rows, or ``None`` when absent.
     """
     header = read_rockstar_id_header_column_names(path)
     if header is None:
         return None
+    if _is_hlist_schema_header_line(header):
+        for token in header:
+            parsed = _parse_hlist_field_token(token)
+            if parsed is not None and parsed[0] == "pid":
+                return parsed[1]
+        return None
     try:
-        return header.index("PID")
+        header_pid = header.index("PID")
     except ValueError:
         return None
+    data_width = _rockstar_first_data_row_width(path)
+    short_pid_index = ROCKSTAR_LIST_COLUMNS["halo_pid"]
+    if data_width is not None and data_width <= header_pid:
+        return short_pid_index
+    return header_pid
 
 
 def resolve_rockstar_pid_filter(
