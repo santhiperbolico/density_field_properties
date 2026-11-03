@@ -26,6 +26,18 @@ Examples (repository root):
     # JSON job config (CLI flags override JSON values)
     PYTHONPATH=src python scripts/plot_hmf_local_sample_four_catalogs.py \\
         --config config/hmf_four_catalogs_taurus.json
+
+    # Replot PNG from CSV only (faster tick spacing, no catalog I/O)
+    PYTHONPATH=src python scripts/plot_hmf_local_sample_four_catalogs.py \\
+        --config config/hmf_four_catalogs_taurus.json \\
+        --from-csv output/hmf_four_catalogs_taurus/hmf_four_catalogs_taurus_full.csv
+
+    # Zoom to Ramakrishnan et al. 2025 Ap. D mass range (2e11–3.2e14 Msun/h)
+    PYTHONPATH=src python scripts/plot_hmf_local_sample_four_catalogs.py \\
+        --config config/hmf_four_catalogs_taurus.json \\
+        --from-csv output/hmf_four_catalogs_taurus/hmf_four_catalogs_taurus_full.csv \\
+        --ramakrishnan-mass-range \\
+        --output-stem hmf_four_catalogs_taurus_full_ramakrishnan
 """
 
 import argparse
@@ -74,6 +86,13 @@ from plot_hmf import (  # noqa: E402
 BIN_EDGES_LOG10_MAX = 15.5
 BIN_EDGES_LOG10_MIN = 10.5
 PLOT_MIN_LOG_MASS = 10.5
+X_MAJOR_TICK_STEP = 0.5
+X_MINOR_TICK_STEP = 0.25
+Y_MAJOR_TICK_STEP = 1.0
+Y_MINOR_TICK_STEP = 0.5
+
+RAMAKRISHNAN_2025_M200B_MIN_MSUN_H = 2.0e11
+RAMAKRISHNAN_2025_M200B_MAX_MSUN_H = 3.2e14
 
 PRESET_LOCAL_SAMPLE = "local_sample"
 PRESET_TAURUS_FULL = "taurus_full"
@@ -128,6 +147,8 @@ class RunConfig:
         Figure title.
     plot_min_log_mass : float
         Lower x-axis limit in log10(M).
+    plot_max_log_mass : Optional[float]
+        Upper x-axis limit in log10(M); when omitted, use the data extent.
     fof_group : str
         FoF BigFile group folder name.
     specs : tuple[CatalogSpec, ...]
@@ -140,6 +161,7 @@ class RunConfig:
     output_stem: str
     plot_title: str
     plot_min_log_mass: float
+    plot_max_log_mass: Optional[float]
     fof_group: str
     specs: tuple[CatalogSpec, ...]
 
@@ -210,6 +232,20 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         default=PLOT_MIN_LOG_MASS,
         help=f"Minimum log10(M) shown on the x-axis (default: {PLOT_MIN_LOG_MASS}).",
     )
+    parser.add_argument(
+        "--plot-max-log-mass",
+        type=float,
+        default=None,
+        help="Maximum log10(M) shown on the x-axis (default: data extent).",
+    )
+    parser.add_argument(
+        "--ramakrishnan-mass-range",
+        action="store_true",
+        help=(
+            "Zoom to Ramakrishnan et al. 2025 Ap. D range "
+            "(2e11–3.2e14 Msun/h, nine log-spaced bins)."
+        ),
+    )
     parser.add_argument("--unit-hlist", type=Path, default=None, help="UNIT hlist path.")
     parser.add_argument(
         "--fastpm-nbody-list",
@@ -252,6 +288,12 @@ def _build_argument_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="Legend label for the FastPM FoF curve.",
+    )
+    parser.add_argument(
+        "--from-csv",
+        type=Path,
+        default=None,
+        help="Replot from a binned CSV export (skip catalog loading).",
     )
     return parser
 
@@ -427,6 +469,22 @@ def _default_box_size_mpc_h(preset: str, local_sample_dir: Path) -> float:
     return 200.0
 
 
+def ramakrishnan_2025_log_mass_limits() -> tuple[float, float]:
+    """
+    Return log10 mass limits from Ramakrishnan et al. (2025) Ap. D (Table D.1).
+
+    Nine halo-mass bins span 2×10^11 to 3.2×10^14 Msun/h in the paper.
+
+    Returns
+    -------
+    tuple[float, float]
+        ``(log10 M_min, log10 M_max)`` in Msun/h.
+    """
+    log_min = float(np.log10(RAMAKRISHNAN_2025_M200B_MIN_MSUN_H))
+    log_max = float(np.log10(RAMAKRISHNAN_2025_M200B_MAX_MSUN_H))
+    return log_min, log_max
+
+
 def _resolve_run_config(args: argparse.Namespace) -> RunConfig:
     """
     Build the fully resolved run configuration from CLI and JSON.
@@ -466,6 +524,13 @@ def _resolve_run_config(args: argparse.Namespace) -> RunConfig:
     else:
         plot_title = f"Full-box HMF ({args.preset})"
 
+    plot_min_log_mass = float(args.plot_min_log_mass)
+    plot_max_log_mass = args.plot_max_log_mass
+    if args.ramakrishnan_mass_range:
+        r_log_min, r_log_max = ramakrishnan_2025_log_mass_limits()
+        plot_min_log_mass = r_log_min
+        plot_max_log_mass = r_log_max
+
     specs = (
         CatalogSpec(
             key="unit",
@@ -498,7 +563,8 @@ def _resolve_run_config(args: argparse.Namespace) -> RunConfig:
         output_dir=Path(output_dir),
         output_stem=output_stem,
         plot_title=plot_title,
-        plot_min_log_mass=float(args.plot_min_log_mass),
+        plot_min_log_mass=plot_min_log_mass,
+        plot_max_log_mass=plot_max_log_mass,
         fof_group=args.fof_group,
         specs=specs,
     )
@@ -704,6 +770,47 @@ def _binned_log_hmf(
     return log_mass, log_density
 
 
+def _load_curves_from_csv(
+    csv_path: Path,
+    specs: tuple[CatalogSpec, ...],
+) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """
+    Build plot curves from a binned HMF CSV written by this script.
+
+    Parameters
+    ----------
+    csv_path : Path
+        CSV with ``log10_bin_center`` and ``log10_n_over_V_*`` columns.
+    specs : tuple[CatalogSpec, ...]
+        Catalog order and legend labels.
+
+    Returns
+    -------
+    dict[str, tuple[np.ndarray, np.ndarray]]
+        Mapping from legend label to finite ``(log10 M, log10 n/V)`` points.
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``csv_path`` is missing.
+    ValueError
+        If a required column is absent.
+    """
+    if not csv_path.is_file():
+        raise FileNotFoundError(f"CSV not found: {csv_path}")
+    table = np.genfromtxt(csv_path, delimiter=",", names=True)
+    log_mass = np.asarray(table["log10_bin_center"], dtype=np.float64)
+    curves: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for spec in specs:
+        column = f"log10_n_over_V_{spec.key}"
+        if column not in table.dtype.names:
+            raise ValueError(f"Missing column {column!r} in {csv_path}")
+        log_density = np.asarray(table[column], dtype=np.float64)
+        finite = np.isfinite(log_density)
+        curves[spec.label] = (log_mass[finite], log_density[finite])
+    return curves
+
+
 def _plot_four_catalog_hmf(
     curves: dict[str, tuple[np.ndarray, np.ndarray]],
     output_path: Path,
@@ -722,11 +829,19 @@ def _plot_four_catalog_hmf(
         Volume and axis limits for the figure.
     """
     fig, ax = plt.subplots(figsize=(10, 10))
+    y_values: list[float] = []
+    log_max = run_config.plot_max_log_mass
     for label, (log_mass, log_density) in curves.items():
         mask = log_mass >= run_config.plot_min_log_mass
+        if log_max is not None:
+            mask = mask & (log_mass <= log_max)
+        x_plot = log_mass[mask]
+        y_plot = log_density[mask]
+        if y_plot.size:
+            y_values.extend(y_plot.tolist())
         ax.plot(
-            log_mass[mask],
-            log_density[mask],
+            x_plot,
+            y_plot,
             "-",
             linewidth=1.2,
             label=label,
@@ -739,11 +854,18 @@ def _plot_four_catalog_hmf(
     )
     ax.set_xlabel(r"$\log_{10}(M\,[\mathrm{M}_\odot/h])$")
     ax.set_ylabel(r"$\log_{10}(n(M)\,[\mathrm{Mpc}/h]^{-3})$")
-    ax.xaxis.set_major_locator(MultipleLocator(0.2))
-    ax.xaxis.set_minor_locator(MultipleLocator(0.1))
-    ax.yaxis.set_major_locator(MultipleLocator(0.5))
-    ax.yaxis.set_minor_locator(MultipleLocator(0.1))
-    ax.set_xlim(left=run_config.plot_min_log_mass)
+    ax.xaxis.set_major_locator(MultipleLocator(X_MAJOR_TICK_STEP))
+    ax.xaxis.set_minor_locator(MultipleLocator(X_MINOR_TICK_STEP))
+    ax.yaxis.set_major_locator(MultipleLocator(Y_MAJOR_TICK_STEP))
+    ax.yaxis.set_minor_locator(MultipleLocator(Y_MINOR_TICK_STEP))
+    x_right = log_max if log_max is not None else None
+    ax.set_xlim(left=run_config.plot_min_log_mass, right=x_right)
+    if y_values:
+        y_min = min(y_values)
+        y_max = max(y_values)
+        y_pad = 0.35
+        ax.set_ylim(bottom=y_min - y_pad, top=y_max + y_pad)
+    ax.tick_params(axis="both", which="major", labelsize=11)
     ax.grid(which="major", linestyle="-", alpha=0.35)
     ax.grid(which="minor", linestyle=":", alpha=0.25)
     ax.legend()
@@ -766,10 +888,21 @@ def main(argv: list[str]) -> int:
         Process exit code.
     """
     json_defaults = _parser_defaults_from_config_arg(argv)
-    run_config = _resolve_run_config(_parse_args(argv, json_defaults))
+    args = _parse_args(argv, json_defaults)
+    run_config = _resolve_run_config(args)
 
     logging.info("Preset: %s", run_config.preset)
     logging.info("Box size (Mpc/h): %.1f", run_config.box_size_mpc_h)
+
+    if args.from_csv is not None:
+        csv_path = args.from_csv
+        curves = _load_curves_from_csv(csv_path, run_config.specs)
+        run_config.output_dir.mkdir(parents=True, exist_ok=True)
+        figure_path = run_config.output_dir / f"{run_config.output_stem}.png"
+        _plot_four_catalog_hmf(curves, figure_path, run_config)
+        logging.info("Replotted from %s -> %s", csv_path, figure_path)
+        return 0
+
     for spec in run_config.specs:
         logging.info("Catalog [%s]: %s", spec.key, spec.path)
 
