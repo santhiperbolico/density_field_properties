@@ -6,9 +6,9 @@
   "plot_title": "MN5 full box HMF (four catalogs)",
   "fof_group": "LL-0.200",
   "catalogs": {
-    "unit_hlist": "/data5/UNITSIM/fixedAmp_InvPhase_001/ROCKSTAR/outputs/hlists/hlist_1.00000.list.bz2",
-    "fastpm_nbody_list": "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/rockstar_out_nbody/out_8.list",
-    "fastpm_pm_list": "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/rockstar_out_pm/out_8.list",
+    "unit_hlist": "output/tidal_mn5/unit/hlist_1.00000.list",
+    "fastpm_nbody_list": "/home/arnes/santiago_arranz/density_field_properties/output/rockstar_find_parents/fastpm_mn5_nbody/out_8_with_pid.list",
+    "fastpm_pm_list": "/home/arnes/santiago_arranz/density_field_properties/output/rockstar_find_parents/fastpm_mn5_tfm/out_8_with_pid.list",
     "fastpm_fof": "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/output_01/fof_1.0000/LL-0.200"
   }
 }
