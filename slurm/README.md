@@ -11,6 +11,7 @@ Plantillas `sbatch` para el cluster. Todas asumen `cd` al directorio del repo y 
 | `sim_to_fastpm/` | Haloscope SIM→FastPM: `main_sim_to_fastpm_haloscope.slurm`, `main_sim_to_fastpm_haloscope_tidal.slurm`, `main_sim_to_fastpm_haloscope_tidal_smoke.slurm` |
 | `pipelines/` | CIC + tensor de marea (`tidal_anisotropy_mn5_from_scratch.slurm`); Haloscope MN5 con descriptores ya generados (`haloscope_tidal_mn5_precomputed.slurm`) |
 | `rockstar/` | Post-proceso Rockstar `find_parents` (columna PID / host halos) |
+| `compare_halo_hmf/` | HMF y calibración de masas multi-catálogo (local_sample / MN5 Taurus) |
 
 ## Convenciones
 
@@ -31,6 +32,8 @@ sbatch slurm/sim_to_fastpm/main_sim_to_fastpm_haloscope_tidal.slurm
 sbatch slurm/rockstar/find_parents_fastpm_mn5_out8.slurm
 sbatch slurm/pipelines/tidal_anisotropy_mn5_from_scratch.slurm
 sbatch slurm/pipelines/haloscope_tidal_mn5_precomputed.slurm
+sbatch slurm/compare_halo_hmf/plot_hmf_four_catalogs_taurus.slurm
+sbatch slurm/compare_halo_hmf/compare_mass_calibration_four_catalogs_taurus.slurm
 ```
 
 Salida por defecto de `find_parents_fastpm_mn5_out8.slurm`:

@@ -91,6 +91,8 @@ def _resolve_ml_feature_array(
     """
     if feature_name in lr_catalog.columns:
         return lr_catalog[feature_name].to_numpy(dtype=float)
+    if feature_name == "delta" and "overdensity" in lr_catalog.columns:
+        return lr_catalog["overdensity"].to_numpy(dtype=float)
     if feature_name == "log10_M200b":
         if lr_mass_column not in lr_catalog.columns:
             raise SchemaValidationError(
@@ -104,7 +106,8 @@ def _resolve_ml_feature_array(
                 "Cannot derive log10_sigma_v: missing column 'sigma_v' on LR catalog."
             )
         sigma = lr_catalog["sigma_v"].to_numpy(dtype=float)
-        return np.log10(sigma)
+        safe_sigma = np.where(sigma > 0.0, sigma, np.nan)
+        return np.log10(safe_sigma)
     raise SchemaValidationError(
         f"LR catalog missing ML feature column '{feature_name}' "
         f"(available: {', '.join(sorted(lr_catalog.columns))})."
@@ -455,6 +458,12 @@ def apply_matching_ml(
             matching=config.matching,
         )
         train_features = build_ml_feature_matrix(lr_train, ml_settings.ml_features, lr_mass_column)
+        finite_train = np.all(np.isfinite(train_features), axis=1)
+        if not np.any(finite_train):
+            raise ValueError("No finite ML training features in train sub-box for matching_ml.")
+        train_features = train_features[finite_train]
+        y_keep = y_keep[finite_train]
+        y_log_m_hr = y_log_m_hr[finite_train]
         regressor = create_regressor(ml_settings.regressor)
         regressor.fit(train_features, _stack_targets(y_keep, y_log_m_hr))
         if model_path is not None and ml_settings.write_model:
@@ -470,7 +479,10 @@ def apply_matching_ml(
         infer_mask = mask_subbox(lr_catalog, ml_settings.infer_subbox)
 
     infer_features = build_ml_feature_matrix(lr_catalog, feature_names, lr_mass_column)
+    finite_infer = np.all(np.isfinite(infer_features), axis=1)
     p_keep, log10_m_hr = _predict_keep_and_log_mass(regressor, infer_features)
+    p_keep = np.where(finite_infer, p_keep, np.nan)
+    log10_m_hr = np.where(finite_infer, log10_m_hr, np.nan)
     calibrated = np.full(len(lr_catalog), np.nan, dtype=float)
     calibrated[infer_mask] = 10.0 ** log10_m_hr[infer_mask]
     calibrated = _apply_keep_threshold(calibrated, p_keep, ml_settings.keep_threshold)

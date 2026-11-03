@@ -32,6 +32,7 @@ dependencies:
   - pip:
     - pre-commit>=4.6.0
     - identify>=2.6.0
+    - xgboost>=2.0.0
     #- python-dotenv
     - mkdocs
     - numpy>=1.7

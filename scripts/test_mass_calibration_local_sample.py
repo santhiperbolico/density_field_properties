@@ -43,7 +43,7 @@ from density_field_properties.pipelines.config import (
 )
 from density_field_properties.pipelines.haloscope_enrichment import build_haloscope_feature_tables
 from density_field_properties.preprocessing.catalog_loaders import (
-    load_fastpm_target_catalog,
+    load_fastpm_rockstar_for_mass_calibration,
     load_unit_sim_training_catalog,
 )
 from density_field_properties.preprocessing.mass_calibration import apply_mass_calibration
@@ -167,7 +167,7 @@ def _run_calibration_only(
         Path(base_config.sim_hlist_path),
         max_halos=base_config.max_sim_halos,
     )
-    halos_fastpm = load_fastpm_target_catalog(
+    halos_fastpm = load_fastpm_rockstar_for_mass_calibration(
         Path(base_config.fastpm_list_path),
         max_halos=base_config.max_fastpm_halos,
     )

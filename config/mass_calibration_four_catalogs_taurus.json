@@ -1,0 +1,91 @@
+{
+  "run_name": "mass_calibration_four_catalogs_taurus",
+  "paths": {
+    "sim_hlist": "output/tidal_mn5/unit/hlist_1.00000.list",
+    "fastpm_list": "output/rockstar_find_parents/fastpm_mn5_tfm/out_8_with_pid.list",
+    "repo_root": ".",
+    "output_dir": "output/mass_calibration_four_catalogs_taurus"
+  },
+  "sample": {
+    "box_size_mpc_h": 1000,
+    "min_mass_msun_h": 2.0e11,
+    "max_mass_msun_h": 3.2e14,
+    "max_sim_halos": null,
+    "max_fastpm_halos": null,
+    "max_descriptor_batch_files": null
+  },
+  "benchmark_hmf": {
+    "min_mass_msun_h": 2.0e11,
+    "max_mass_msun_h": 3.2e14
+  },
+  "benchmark_methods": ["abundance_matching", "matching_ml"],
+  "benchmark_catalogs": {
+    "rockstar_nbody": {
+      "label": "FastPM Rockstar (nbody)",
+      "path": "/home/arnes/santiago_arranz/density_field_properties/output/rockstar_find_parents/fastpm_mn5_nbody/out_8_with_pid.list",
+      "loader": "rockstar_list"
+    },
+    "rockstar_pm": {
+      "label": "FastPM Rockstar (pm)",
+      "path": "/home/arnes/santiago_arranz/density_field_properties/output/rockstar_find_parents/fastpm_mn5_tfm/out_8_with_pid.list",
+      "loader": "rockstar_list"
+    },
+    "fastpm_fof": {
+      "label": "FastPM FoF",
+      "path": "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/output_01/fof_1.0000/LL-0.200",
+      "loader": "fastpm_fof"
+    }
+  },
+  "mass_calibration": {
+    "enabled": true,
+    "method": "abundance_matching",
+    "calibrated_column": "M200b_cal",
+    "matching": {
+      "k_neighbours": 10,
+      "r_match_mpc_h": 5.0,
+      "max_mass_distance": 0.95,
+      "max_matching_iterations": 5
+    },
+    "matching_ml": {
+      "train_subbox": {
+        "x_min_mpc_h": 0.0,
+        "x_max_mpc_h": 500.0,
+        "y_min_mpc_h": 0.0,
+        "y_max_mpc_h": 1000.0,
+        "z_min_mpc_h": 0.0,
+        "z_max_mpc_h": 1000.0
+      },
+      "ml_features": ["log10_M200b", "delta", "log10_sigma_v"],
+      "regressor": {
+        "type": "xgboost",
+        "params": {
+          "n_estimators": 100,
+          "max_depth": 8,
+          "random_state": 42,
+          "n_jobs": 4,
+          "verbosity": 0
+        }
+      },
+      "keep_threshold": null,
+      "model_path": null,
+      "write_model": true
+    }
+  },
+  "haloscope": {
+    "input_features": ["overdensity"],
+    "min_bin_size": 5,
+    "run_holdout_validation": false,
+    "enriched_parquet_name": "benchmark_placeholder.parquet"
+  },
+  "tidal": {
+    "n_grid": 512,
+    "unit_descriptors_dir": "output/tidal_mn5/unit/tidal_anisotropy",
+    "fastpm_descriptors_dir": "output/tidal_mn5/fastpm/tidal_anisotropy"
+  },
+  "validation": {
+    "assembly_bias": {
+      "enabled": false
+    }
+  },
+  "collect_tables": false
+}
