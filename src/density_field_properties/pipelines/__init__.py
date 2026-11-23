@@ -1,19 +1,13 @@
 """Pipeline orchestration for Haloscope SIM-to-FastPM enrichment."""
 
 from density_field_properties.pipelines.config import (
-    DEFAULT_ENV_PRODUCTION_CONFIG,
-    DEFAULT_ENV_SMOKE_CONFIG,
-    DEFAULT_TIDAL_PRODUCTION_CONFIG,
-    DEFAULT_TIDAL_SMOKE_CONFIG,
+    DEFAULT_PIPELINE_CONFIG,
     HaloscopeEnrichmentConfig,
     load_haloscope_enrichment_config,
 )
 
 __all__ = [
-    "DEFAULT_ENV_PRODUCTION_CONFIG",
-    "DEFAULT_ENV_SMOKE_CONFIG",
-    "DEFAULT_TIDAL_PRODUCTION_CONFIG",
-    "DEFAULT_TIDAL_SMOKE_CONFIG",
+    "DEFAULT_PIPELINE_CONFIG",
     "HaloscopeEnrichmentConfig",
     "HaloscopeEnrichmentRun",
     "load_haloscope_enrichment_config",

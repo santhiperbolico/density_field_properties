@@ -1,4 +1,4 @@
-"""Tests for multi-stage Haloscope pipeline orchestration."""
+"""Tests for Haloscope pipeline stages."""
 
 from pathlib import Path
 from unittest.mock import patch
@@ -7,181 +7,280 @@ import pandas as pd
 import pytest
 
 from density_field_properties.pipelines.config import (
+    PIPELINE_TARGET_FASTPM,
+    PIPELINE_TARGET_UNIT,
+    EnvironmentFeaturesConfig,
+    GeneralConfig,
+    HaloscopeConfig,
     HaloscopeEnrichmentConfig,
-    HaloscopePipelineStages,
-    HaloscopeStageConfig,
-    PreprocessStageConfig,
-    TidalAnisotropyStageConfig,
+    HaloscopePipelineFlowConfig,
+    MassCorrectionConfig,
+    PreprocessingConfig,
+    SampleConfig,
     TidalAnisotropyTargetConfig,
+    ValidationConfig,
+    load_haloscope_enrichment_config,
 )
+from density_field_properties.pipelines.haloscope_enrichment import HaloscopeEnrichmentRun
 from density_field_properties.pipelines.haloscope_pipeline import (
-    _resolve_descriptor_dirs_from_pipeline,
-    run_assembly_bias_from_cached_tables,
+    EnvironmentFeaturesElement,
+    HaloscopeElement,
+    HaloscopePipeline,
+    HaloscopePipelineState,
+    PreprocessingElement,
+    ValidationElement,
     run_haloscope_pipeline,
 )
 
+PIPELINE_MODULE = "density_field_properties.pipelines.haloscope_pipeline"
+PATCH_TIDAL_TARGET = f"{PIPELINE_MODULE}.run_tidal_anisotropy_pipeline_for_target"
+PATCH_BUILD_TABLES = f"{PIPELINE_MODULE}.build_haloscope_feature_tables"
+PATCH_ENRICHMENT = f"{PIPELINE_MODULE}.run_haloscope_enrichment_from_tables"
 
-def _minimal_config(tmp_path: Path, stages: HaloscopePipelineStages) -> HaloscopeEnrichmentConfig:
+
+def _minimal_pipeline_config(tmp_path: Path) -> HaloscopeEnrichmentConfig:
     """
-    Build a minimal enrichment config for pipeline orchestration tests.
+    Build a minimal in-memory pipeline config with placeholder catalogs.
 
     Parameters
     ----------
     tmp_path : Path
-        Temporary directory for catalog and output paths.
-    stages : HaloscopePipelineStages
-        Pipeline stage toggles under test.
+        Temporary directory for catalog paths.
 
     Returns
     -------
     HaloscopeEnrichmentConfig
-        Config pointing at placeholder catalog files.
+        Config with optional stages toggled off by default.
     """
     sim_path = tmp_path / "sim.list"
     fastpm_path = tmp_path / "fastpm.list"
     sim_path.write_text("# header\n", encoding="utf-8")
     fastpm_path.write_text("# header\n", encoding="utf-8")
-    return HaloscopeEnrichmentConfig(
-        sim_hlist_path=sim_path,
-        fastpm_list_path=fastpm_path,
-        repo_root=tmp_path,
-        output_dir=tmp_path / "out",
+    sample = SampleConfig(
         box_size_mpc_h=200.0,
-        pipeline_stages=stages,
-        input_features=("env",),
-        run_assembly_bias_plot=False,
+        min_mass_msun_h=1.0e11,
+        get_min_mass_lr_from_hmf=False,
+        max_mass_msun_h=None,
+        max_sim_halos=None,
+        max_fastpm_halos=None,
     )
-
-
-def test_run_haloscope_pipeline_executes_tidal_targets_sequentially(tmp_path):
-    """
-    Enabled tidal-anisotropy stage should process each configured target once.
-    """
-    stages = HaloscopePipelineStages(
-        tidal_anisotropy=TidalAnisotropyStageConfig(
-            enabled=True,
-            targets=("unit", "fastpm"),
-            unit=TidalAnisotropyTargetConfig(
-                dm_particles_file=tmp_path / "unit_dm.dat",
-                work_dir=tmp_path / "unit_work",
-            ),
-            fastpm=TidalAnisotropyTargetConfig(
-                dm_particles_file=tmp_path / "fastpm_snap",
-                work_dir=tmp_path / "fastpm_work",
-                catalog_layout="rockstar_list",
-            ),
+    return HaloscopeEnrichmentConfig(
+        run_name="test",
+        general=GeneralConfig(
+            sim_hlist=sim_path,
+            fastpm_list=fastpm_path,
+            repo_root=tmp_path,
+            output_dir=tmp_path / "out",
+            input_features=["env"],
         ),
-        preprocess=PreprocessStageConfig(enabled=False),
-        haloscope=HaloscopeStageConfig(enabled=False),
-    )
-    config = _minimal_config(tmp_path, stages)
-    processed_targets = []
-
-    def fake_tidal_stage(active_config):
-        processed_targets.extend(active_config.pipeline_stages.tidal_anisotropy.targets)
-
-    with patch(
-        "density_field_properties.pipelines.haloscope_pipeline.run_tidal_anisotropy_stage",
-        side_effect=fake_tidal_stage,
-    ):
-        result = run_haloscope_pipeline(config)
-
-    assert processed_targets == ["unit", "fastpm"]
-    assert result is None
-
-
-def test_resolve_descriptor_dirs_from_pipeline_work_dirs(tmp_path):
-    """
-    Tidal descriptor dirs should resolve from pipeline work dirs when unset.
-    """
-    unit_work = tmp_path / "unit_work"
-    fastpm_work = tmp_path / "fastpm_work"
-    stages = HaloscopePipelineStages(
-        tidal_anisotropy=TidalAnisotropyStageConfig(
-            enabled=False,
-            unit=TidalAnisotropyTargetConfig(work_dir=unit_work),
-            fastpm=TidalAnisotropyTargetConfig(work_dir=fastpm_work),
+        pipeline=HaloscopePipelineFlowConfig(
+            environment_features=EnvironmentFeaturesConfig(
+                enabled=False,
+                n_grid=256,
+                cic_batch_size=None,
+                descriptor_batch_size=1000,
+                targets=[],
+            ),
+            preprocessing=PreprocessingConfig(
+                enabled=True,
+                hr_parquet_name="hr.parquet",
+                lr_parquet_name="lr.parquet",
+                sample=sample,
+                mass_correction=MassCorrectionConfig(
+                    method="abundance_matching",
+                    correction_column="M200b_cal",
+                    params_method={},
+                ),
+            ),
+            haloscope=HaloscopeConfig(
+                enabled=False,
+                input_features=[],
+                run_holdout_validation=False,
+                min_bin_size=5,
+                enriched_parquet_name="enriched.parquet",
+            ),
+            validation=ValidationConfig(enabled=False, n_grid=128),
         ),
     )
-    config = _minimal_config(tmp_path, stages)
-    config.input_features = ("t_over_u", "tidal_anisotropy")
-
-    _resolve_descriptor_dirs_from_pipeline(config)
-
-    assert config.unit_descriptors_dir == unit_work / "tidal_anisotropy"
-    assert config.fastpm_descriptors_dir == fastpm_work / "tidal_anisotropy"
 
 
-def test_run_haloscope_pipeline_assembly_bias_only(tmp_path):
+def test_environment_features_runs_each_target(tmp_path):
     """
-    Assembly-bias-only mode should load Parquet tables and skip enrichment.
+    Enabled environment features should invoke tidal pipeline once per target.
     """
-    out_dir = tmp_path / "out"
-    out_dir.mkdir()
-    hr_path = out_dir / "hr.parquet"
-    enriched_path = out_dir / "enriched.parquet"
-    hr = pd.DataFrame({"M200b": [1.0e12]})
-    lr = pd.DataFrame(
-        {"M200b_cal": [9.0e11], "cv": [1.0], "Spin": [0.1], "ca": [0.9], "ba": [0.8]}
-    )
-    hr.to_parquet(hr_path, index=False)
-    lr.to_parquet(enriched_path, index=False)
+    config = _minimal_pipeline_config(tmp_path)
+    config.pipeline.environment_features.enabled = True
+    config.pipeline.environment_features.targets = [
+        TidalAnisotropyTargetConfig(
+            name=PIPELINE_TARGET_UNIT,
+            dm_particles_file=tmp_path / "unit_dm.dat",
+            work_dir=tmp_path / "unit_work",
+        ),
+        TidalAnisotropyTargetConfig(
+            name=PIPELINE_TARGET_FASTPM,
+            dm_particles_file=tmp_path / "fastpm_dm",
+            work_dir=tmp_path / "fastpm_work",
+            catalog_layout="rockstar_list",
+        ),
+    ]
+    calls = []
 
-    stages = HaloscopePipelineStages(
-        preprocess=PreprocessStageConfig(hr_parquet_name="hr.parquet"),
-        haloscope=HaloscopeStageConfig(enabled=False),
-    )
-    config = _minimal_config(tmp_path, stages)
-    config.output_dir = out_dir
-    config.run_assembly_bias_plot = True
-    config.assembly_bias_only = True
-    config.enriched_parquet_name = "enriched.parquet"
-    config.input_features = ("env",)
+    def fake_tidal(**kwargs):
+        calls.append(kwargs["target_name"])
 
-    with patch(
-        "density_field_properties.pipelines.haloscope_pipeline.write_tidal_assembly_bias_panel",
-        return_value=out_dir / "assembly_bias_tidal_input.pdf",
-    ) as write_panel:
-        result = run_haloscope_pipeline(config)
+    state = HaloscopePipelineState()
+    with patch(PATCH_TIDAL_TARGET, side_effect=fake_tidal):
+        EnvironmentFeaturesElement(config, state).run()
 
-    assert result == out_dir / "assembly_bias_tidal_input.pdf"
-    write_panel.assert_called_once()
-    called_hr = write_panel.call_args[0][0]
-    assert called_hr["M200b"].iloc[0] == 1.0e12
+    assert calls == [PIPELINE_TARGET_UNIT, PIPELINE_TARGET_FASTPM]
 
 
-def test_run_assembly_bias_from_cached_tables_requires_enabled_flag(tmp_path):
+def test_preprocessing_writes_parquet_tables(tmp_path):
     """
-    Cached assembly-bias runs should fail when validation assembly bias is disabled.
+    Preprocessing stage should persist HR/LR Parquet files.
     """
-    config = _minimal_config(tmp_path, HaloscopePipelineStages())
-    config.run_assembly_bias_plot = False
-    config.assembly_bias_only = True
-
-    with pytest.raises(ValueError, match="assembly_bias.only requires"):
-        run_assembly_bias_from_cached_tables(config)
-
-
-def test_run_haloscope_pipeline_preprocess_only(tmp_path):
-    """
-    Preprocess stage should persist HR/LR tables without running Haloscope.
-    """
-    stages = HaloscopePipelineStages(
-        preprocess=PreprocessStageConfig(enabled=True),
-        haloscope=HaloscopeStageConfig(enabled=False),
-    )
-    config = _minimal_config(tmp_path, stages)
+    config = _minimal_pipeline_config(tmp_path)
     hr = pd.DataFrame({"M200b": [1.0e12], "env": [0.1]})
-    lr = pd.DataFrame({"M200b": [8.0e11], "env": [0.2]})
+    lr = pd.DataFrame({"M200b": [8.0e11], "env": [0.2], "M200b_cal": [9.0e11]})
+    state = HaloscopePipelineState()
 
-    with patch(
-        "density_field_properties.pipelines.haloscope_pipeline.build_haloscope_feature_tables",
-        return_value=(hr, lr, "M200b_cal"),
-    ):
-        result = run_haloscope_pipeline(config)
+    with patch(PATCH_BUILD_TABLES, return_value=(hr, lr, "M200b_cal")):
+        PreprocessingElement(config, state).run()
 
-    assert result is not None
-    hr_path, lr_path = result
+    assert state.preprocess_paths is not None
+    hr_path, lr_path = state.preprocess_paths
     assert hr_path.is_file()
     assert lr_path.is_file()
-    assert pd.read_parquet(hr_path).shape[0] == 1
+
+
+def test_haloscope_stage_calls_enrichment(tmp_path):
+    """
+    Haloscope stage should fit the model when enabled.
+    """
+    config = _minimal_pipeline_config(tmp_path)
+    config.pipeline.haloscope.enabled = True
+    hr = pd.DataFrame({"M200b": [1.0e12], "env": [0.1]})
+    lr = pd.DataFrame({"M200b": [8.0e11], "env": [0.2], "M200b_cal": [9.0e11]})
+    state = HaloscopePipelineState()
+    state.preprocess_paths = (tmp_path / "hr.parquet", tmp_path / "lr.parquet")
+    hr.to_parquet(state.preprocess_paths[0], index=False)
+    lr.to_parquet(state.preprocess_paths[1], index=False)
+
+    with patch(PATCH_ENRICHMENT, return_value=tmp_path / "enriched.parquet") as enrich_mock:
+        HaloscopeElement(config, state).run()
+
+    enrich_mock.assert_called_once()
+    call_kwargs = enrich_mock.call_args.kwargs
+    assert call_kwargs["run_enrichment"] is True
+    assert call_kwargs["write_assembly_bias"] is True
+
+
+def test_validation_stage_runs_assembly_only(tmp_path):
+    """
+    Validation stage should call enrichment with ``run_enrichment=False``.
+    """
+    config = _minimal_pipeline_config(tmp_path)
+    config.pipeline.haloscope.enabled = True
+    config.pipeline.validation.enabled = True
+    hr = pd.DataFrame({"M200b": [1.0e12], "env": [0.1]})
+    lr = pd.DataFrame({"M200b": [8.0e11], "env": [0.2], "M200b_cal": [9.0e11]})
+    enriched_path = config.output_dir / "enriched.parquet"
+    config.output_dir.mkdir(parents=True, exist_ok=True)
+    lr.to_parquet(enriched_path, index=False)
+
+    state = HaloscopePipelineState()
+    state.preprocess_paths = (tmp_path / "hr.parquet", tmp_path / "lr.parquet")
+    hr.to_parquet(state.preprocess_paths[0], index=False)
+    lr.to_parquet(state.preprocess_paths[1], index=False)
+    state.enrichment_result = enriched_path
+
+    with patch(
+        PATCH_ENRICHMENT,
+        return_value=HaloscopeEnrichmentRun(output_path=enriched_path),
+    ) as enrich_mock:
+        ValidationElement(config, state).run()
+
+    enrich_mock.assert_called_once()
+    assert enrich_mock.call_args.kwargs["run_enrichment"] is False
+
+
+def test_run_haloscope_pipeline_orchestrates_stages(tmp_path):
+    """
+    Full pipeline run should populate ``HaloscopePipelineState``.
+    """
+    config = _minimal_pipeline_config(tmp_path)
+    config.pipeline.haloscope.enabled = True
+    hr = pd.DataFrame({"M200b": [1.0e12], "env": [0.1]})
+    lr = pd.DataFrame({"M200b": [8.0e11], "env": [0.2], "M200b_cal": [9.0e11]})
+
+    with (
+        patch(PATCH_BUILD_TABLES, return_value=(hr, lr, "M200b_cal")),
+        patch(PATCH_ENRICHMENT, return_value=tmp_path / "enriched.parquet"),
+    ):
+        state = run_haloscope_pipeline(config)
+
+    assert state.preprocess_paths is not None
+    assert state.enrichment_result is not None
+
+
+def test_haloscope_defers_assembly_when_validation_enabled(tmp_path):
+    """
+    With validation enabled, Haloscope should skip assembly plots in enrichment.
+    """
+    config = _minimal_pipeline_config(tmp_path)
+    config.pipeline.haloscope.enabled = True
+    config.pipeline.validation.enabled = True
+    hr = pd.DataFrame({"M200b": [1.0e12], "env": [0.1]})
+    lr = pd.DataFrame({"M200b": [8.0e11], "env": [0.2], "M200b_cal": [9.0e11]})
+    state = HaloscopePipelineState()
+    state.preprocess_paths = (tmp_path / "hr.parquet", tmp_path / "lr.parquet")
+    hr.to_parquet(state.preprocess_paths[0], index=False)
+    lr.to_parquet(state.preprocess_paths[1], index=False)
+
+    with patch(PATCH_ENRICHMENT, return_value=tmp_path / "enriched.parquet") as enrich_mock:
+        HaloscopeElement(config, state).run()
+
+    assert enrich_mock.call_args.kwargs["write_assembly_bias"] is False
+
+
+def test_validation_only_skips_heavy_stages(tmp_path):
+    """
+    With only validation enabled, the pipeline should not rebuild preprocess or Haloscope.
+    """
+    config = _minimal_pipeline_config(tmp_path)
+    config.pipeline.environment_features.enabled = False
+    config.pipeline.preprocessing.enabled = False
+    config.pipeline.haloscope.enabled = False
+    config.pipeline.validation.enabled = True
+    out_dir = Path(config.output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    hr = pd.DataFrame({"M200b": [1.0e12], "env": [0.1]})
+    lr = pd.DataFrame({"M200b": [8.0e11], "env": [0.2], "M200b_cal": [9.0e11]})
+    enriched_path = out_dir / config.pipeline.haloscope.enriched_parquet_name
+    hr.to_parquet(out_dir / "hr.parquet", index=False)
+    lr.to_parquet(out_dir / "lr.parquet", index=False)
+    lr.to_parquet(enriched_path, index=False)
+
+    with (
+        patch(PATCH_BUILD_TABLES) as build_mock,
+        patch(PATCH_ENRICHMENT, return_value=HaloscopeEnrichmentRun(output_path=enriched_path)),
+        patch(PATCH_TIDAL_TARGET) as tidal_mock,
+    ):
+        HaloscopePipeline(config).run()
+
+    build_mock.assert_not_called()
+    tidal_mock.assert_not_called()
+
+
+def test_load_template_json_pipeline_shape():
+    """
+    Repository template JSON should parse nested pipeline sections.
+    """
+    template = Path("config/pipeline_haloscope_template.json")
+    if not template.is_file():
+        pytest.skip("pipeline template not in checkout")
+    config = load_haloscope_enrichment_config(template)
+    assert config.pipeline.preprocessing.mass_correction.method == "matching_ml"
+    assert config.pipeline.haloscope.enabled is True
+    assert config.pipeline.validation.enabled is True
+    assert config.pipeline.validation.n_grid == 256

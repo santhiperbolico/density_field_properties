@@ -1,777 +1,909 @@
-"""Run configuration for the Haloscope enrichment pipeline."""
+"""Run configuration for the Haloscope enrichment pipeline (JSON template shape)."""
 
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 
 from density_field_properties.haloscope.mass_bin_config import (
     HaloscopeMassBinConfig,
     default_haloscope_mass_bin_config,
-    parse_haloscope_mass_bin_config,
-)
-from density_field_properties.pipelines.catalog_columns import (
-    HLIST_CATALOG_LAYOUT,
-    ROCKSTAR_LIST_CATALOG_LAYOUT,
 )
 from density_field_properties.pipelines.run_defaults import (
     DM_MASS_PARTICLE_MSUN_H,
-    ENRICHED_PARQUET_NAME,
-    ENRICHED_TIDAL_PARQUET_NAME,
-    FASTPM_BOXSIZE_MPC_H,
     INPUT_FEATURES,
     OUTPUT_DIR,
-    OUTPUT_DIR_TIDAL,
-    OUTPUT_DIR_TIDAL_SMOKE,
-    PRODUCTION_MIN_BIN_SIZE,
-    SIM_BOXSIZE_MPC_H,
-    SMOKE_MIN_BIN_SIZE,
-    TIDAL_DENSITY_N_GRID,
-    TIDAL_INPUT_FEATURES,
-    default_fastpm_dm_particles_path,
-    default_fastpm_list_path,
-    default_sim_dm_particles_path,
-    default_sim_hlist_path,
 )
-from density_field_properties.pipelines.tidal_anisotropy_run import (
-    DEFAULT_DESCRIPTOR_BATCH_SIZE,
+from density_field_properties.pipelines.tidal_anisotropy_run import DEFAULT_DESCRIPTOR_BATCH_SIZE
+from density_field_properties.preprocessing.mass_correction.config import (
+    MASS_CORRECTION_METHODS,
+    MassCorrectionSettings,
+    _parse_matching,
+    _parse_matching_ml,
 )
-from density_field_properties.preprocessing.mass_calibration_config import (
-    MassCalibrationConfig,
-    default_mass_calibration_config,
-    parse_mass_calibration_config,
-)
-from density_field_properties.preprocessing.mass_filter_config import (
-    HaloMassFilterConfig,
-    default_halo_mass_filter_config,
-    parse_halo_mass_filter_config,
-)
+from density_field_properties.preprocessing.mass_filter_config import HaloMassFilterConfig
 
 PIPELINE_TARGET_UNIT = "unit"
 PIPELINE_TARGET_FASTPM = "fastpm"
-_PIPELINE_TARGET_ALIASES = {
-    "hr": PIPELINE_TARGET_UNIT,
-    "lr": PIPELINE_TARGET_FASTPM,
-}
 
-DEFAULT_ASSEMBLY_BIAS_N_GRID = 128
-ASSEMBLY_BIAS_TIDAL_PDF_NAME = "assembly_bias_tidal_input.pdf"
+DEFAULT_PIPELINE_CONFIG = Path("config/pipeline_haloscope_template.json")
+
+_ENVIRONMENT_FEATURES_KEYS = ("environment_features", "enviroment_features")
+
 HOLDOUT_CORNER_PLOT_FILENAME_TEMPLATE = "holdout_sim_validation_bin{bin_index}.pdf"
-
-DEFAULT_ENV_SMOKE_CONFIG = Path("config/haloscope_run_env_smoke.json")
-DEFAULT_ENV_PRODUCTION_CONFIG = Path("config/haloscope_run_env_production.json")
-DEFAULT_TIDAL_SMOKE_CONFIG = Path("config/haloscope_run_tidal_smoke.json")
-DEFAULT_TIDAL_PRODUCTION_CONFIG = Path("config/haloscope_run_tidal_production.json")
+ASSEMBLY_BIAS_TIDAL_PDF_NAME = "assembly_bias_tidal_input.pdf"
+DEFAULT_ASSEMBLY_BIAS_N_GRID = 128
 
 
-def _default_tidal_unit_target() -> "TidalAnisotropyTargetConfig":
+def _parse_path(value: Any, default: Optional[Path] = None) -> Optional[Path]:
     """
-    Build default UNIT tidal-anisotropy target settings.
+    Parse a path from JSON, returning ``default`` when the value is null or empty.
+
+    Parameters
+    ----------
+    value : Any
+        Raw JSON value.
+    default : Optional[Path], optional
+        Fallback when ``value`` is null, empty, or whitespace.
 
     Returns
     -------
-    TidalAnisotropyTargetConfig
-        Default HR target configuration.
+    Optional[Path]
+        Resolved path or ``default``.
     """
-    return TidalAnisotropyTargetConfig()
+    if value is None:
+        return default
+    text = str(value).strip()
+    if not text:
+        return default
+    return Path(text)
 
 
-def _default_tidal_fastpm_target() -> "TidalAnisotropyTargetConfig":
+def _pipeline_environment_features(pipeline: dict) -> dict:
     """
-    Build default FastPM tidal-anisotropy target settings.
+    Return the environment-features subsection from a pipeline object.
+
+    Parameters
+    ----------
+    pipeline : dict
+        Raw ``pipeline`` object from the run JSON.
 
     Returns
     -------
-    TidalAnisotropyTargetConfig
-        Default LR target configuration with Rockstar list column layout.
+    dict
+        Environment-features settings (empty dict when absent).
     """
-    return TidalAnisotropyTargetConfig(catalog_layout=ROCKSTAR_LIST_CATALOG_LAYOUT)
+    for key in _ENVIRONMENT_FEATURES_KEYS:
+        section = pipeline.get(key)
+        if isinstance(section, dict):
+            return section
+    return {}
 
 
-def _default_tidal_anisotropy_stage() -> "TidalAnisotropyStageConfig":
+@dataclass
+class GeneralConfig:
     """
-    Build default tidal-anisotropy stage settings.
-
-    Returns
-    -------
-    TidalAnisotropyStageConfig
-        Disabled stage with both simulation targets configured.
+    Top-level paths and run output location (``general`` in JSON).
     """
-    return TidalAnisotropyStageConfig()
 
-
-def _default_preprocess_stage() -> "PreprocessStageConfig":
-    """
-    Build default preprocess stage settings.
-
-    Returns
-    -------
-    PreprocessStageConfig
-        Disabled preprocess stage configuration.
-    """
-    return PreprocessStageConfig()
-
-
-def _default_haloscope_stage() -> "HaloscopeStageConfig":
-    """
-    Build default Haloscope stage settings.
-
-    Returns
-    -------
-    HaloscopeStageConfig
-        Enabled Haloscope enrichment stage configuration.
-    """
-    return HaloscopeStageConfig()
-
-
-def _default_pipeline_stages() -> "HaloscopePipelineStages":
-    """
-    Build default multi-stage pipeline toggles.
-
-    Returns
-    -------
-    HaloscopePipelineStages
-        Legacy-compatible stage defaults (Haloscope only).
-    """
-    return HaloscopePipelineStages()
+    sim_hlist: Path
+    fastpm_list: Path
+    repo_root: Path = Path.cwd()
+    output_dir: Path = OUTPUT_DIR
+    input_features: list[str] = field(default_factory=lambda: list(INPUT_FEATURES))
+    unit_descriptors_dir: Optional[Path] = None
+    fastpm_descriptors_dir: Optional[Path] = None
 
 
 @dataclass
 class TidalAnisotropyTargetConfig:
     """
     Per-simulation settings for the tidal-anisotropy pipeline stage.
-
-    Parameters
-    ----------
-    dm_particles_file : Optional[Path]
-        DM particle source for CIC density construction.
-    work_dir : Optional[Path]
-        Simulation-specific working directory under the run output tree.
-    catalog_layout : str
-        Rockstar reader column layout (``hlist`` or ``rockstar_list``).
-    read_tensor_from_disk : bool
-        If True, skip tidal-tensor recomputation and reuse ``tidal_tensor/``.
     """
 
+    name: str
     dm_particles_file: Optional[Path] = None
     work_dir: Optional[Path] = None
-    catalog_layout: str = HLIST_CATALOG_LAYOUT
+    catalog_layout: str = "hlist"
     read_tensor_from_disk: bool = False
+    descriptors_dir: Optional[Path] = None
+    mass_particle: Optional[float] = DM_MASS_PARTICLE_MSUN_H
+    max_halos: Optional[int] = None
 
 
 @dataclass
-class TidalAnisotropyStageConfig:
+class EnvironmentFeaturesConfig:
     """
-    Configuration for the tidal-anisotropy computation stage.
-
-    Parameters
-    ----------
-    enabled : bool
-        Whether to run CIC + tidal tensor + descriptor generation.
-    targets : tuple[str, ...]
-        Simulation targets to process sequentially (``unit``, ``fastpm``).
-    mass_particle : float
-        DM particle mass in Msun/h for CIC deposition.
-    cic_batch_size : Optional[int]
-        Particle batch size for CIC; ``None`` reads all particles at once.
-    descriptor_batch_size : Optional[int]
-        Halo batch size for descriptor generation.
-    unit : TidalAnisotropyTargetConfig
-        UNIT / HR target overrides.
-    fastpm : TidalAnisotropyTargetConfig
-        FastPM / LR target overrides.
+    Configuration for the environment / tidal-anisotropy features stage.
     """
 
-    enabled: bool = False
-    targets: tuple[str, ...] = (PIPELINE_TARGET_UNIT, PIPELINE_TARGET_FASTPM)
-    mass_particle: float = DM_MASS_PARTICLE_MSUN_H
-    cic_batch_size: Optional[int] = None
-    descriptor_batch_size: Optional[int] = DEFAULT_DESCRIPTOR_BATCH_SIZE
-    unit: TidalAnisotropyTargetConfig = field(default_factory=_default_tidal_unit_target)
-    fastpm: TidalAnisotropyTargetConfig = field(default_factory=_default_tidal_fastpm_target)
+    enabled: bool
+    n_grid: int
+    cic_batch_size: Optional[int]
+    descriptor_batch_size: Optional[int]
+    targets: list[TidalAnisotropyTargetConfig]
 
 
 @dataclass
-class PreprocessStageConfig:
+class SampleConfig:
     """
-    Configuration for writing preprocessed HR/LR feature tables.
-
-    Parameters
-    ----------
-    enabled : bool
-        Whether to persist HR/LR tables with attached INPUT features.
-    hr_parquet_name : str
-        HR table filename inside ``output_dir``.
-    lr_parquet_name : str
-        LR table filename inside ``output_dir``.
+    Halo sampling limits for preprocessing.
     """
 
-    enabled: bool = False
-    hr_parquet_name: str = "hr_preprocessed.parquet"
-    lr_parquet_name: str = "lr_preprocessed.parquet"
+    box_size_mpc_h: float
+    min_mass_msun_h: float
+    get_min_mass_lr_from_hmf: bool
+    max_mass_msun_h: Optional[float]
+    max_sim_halos: Optional[int]
+    max_fastpm_halos: Optional[int]
 
 
 @dataclass
-class HaloscopeStageConfig:
+class MassCorrectionConfig:
     """
-    Configuration for the Haloscope train-and-predict stage.
-
-    Parameters
-    ----------
-    enabled : bool
-        Whether to fit models on HR data and enrich the LR catalog.
+    LR mass correction settings for preprocessing.
     """
 
-    enabled: bool = True
+    method: str
+    correction_column: str
+    params_method: dict
 
 
 @dataclass
-class HaloscopePipelineStages:
+class PreprocessingConfig:
     """
-    Optional multi-stage Haloscope pipeline toggles.
-
-    Parameters
-    ----------
-    tidal_anisotropy : TidalAnisotropyStageConfig
-        CIC + tidal tensor + descriptor generation settings.
-    preprocess : PreprocessStageConfig
-        Preprocessed HR/LR table export settings.
-    haloscope : HaloscopeStageConfig
-        Haloscope enrichment stage settings.
+    Preprocess stage: sample filters, mass correction, cached Parquet names.
     """
 
-    tidal_anisotropy: TidalAnisotropyStageConfig = field(
-        default_factory=_default_tidal_anisotropy_stage
-    )
-    preprocess: PreprocessStageConfig = field(default_factory=_default_preprocess_stage)
-    haloscope: HaloscopeStageConfig = field(default_factory=_default_haloscope_stage)
+    enabled: bool
+    hr_parquet_name: str
+    lr_parquet_name: str
+    sample: SampleConfig
+    mass_correction: MassCorrectionConfig
+
+
+@dataclass
+class HaloscopeConfig:
+    """
+    Haloscope enrichment stage settings.
+    """
+
+    enabled: bool
+    input_features: list[str]
+    run_holdout_validation: bool
+    min_bin_size: int
+    enriched_parquet_name: str
+
+
+@dataclass
+class ValidationConfig:
+    """
+    Post-enrichment validation (e.g. assembly-bias grid).
+    """
+
+    enabled: bool
+    n_grid: int
+
+
+@dataclass
+class HaloscopePipelineFlowConfig:
+    """
+    Nested ``pipeline`` section of the run JSON.
+    """
+
+    environment_features: EnvironmentFeaturesConfig
+    preprocessing: PreprocessingConfig
+    haloscope: HaloscopeConfig
+    validation: ValidationConfig
 
 
 @dataclass
 class HaloscopeEnrichmentConfig:
     """
-    Configuration for a Haloscope SIM-to-FastPM enrichment run.
-
-    Parameters
-    ----------
-    sim_hlist_path : Path
-        Path to the SIM (UNIT) consistent-trees catalog.
-    fastpm_list_path : Path
-        Path to the FastPM Rockstar ``out_*.list`` catalog.
-    repo_root : Path, optional
-        Repository root for resolving relative tidal descriptor directories.
-    output_dir : Path, optional
-        Directory for Parquet and validation outputs.
-    max_sim_halos : Optional[int], optional
-        Cap rows read from the SIM hlist; ``None`` reads the full catalog.
-    max_fastpm_halos : Optional[int], optional
-        Cap halos read from the FastPM catalog.
-    max_descriptor_batch_files : Optional[int], optional
-        Smoke cap on tidal descriptor batch files per simulation.
-    min_bin_size : int, optional
-        Minimum halos per mass bin for fit and validation.
-    run_holdout_validation : bool, optional
-        Whether to run SIM train/test validation before enrichment.
-    input_features : tuple[str, ...], optional
-        Haloscope INPUT columns to attach.
-    unit_descriptors_dir : Optional[Path], optional
-        UNIT tidal descriptor directory.
-    fastpm_descriptors_dir : Optional[Path], optional
-        FastPM tidal descriptor directory.
-    tidal_n_grid : int, optional
-        Grid resolution used when tidal descriptors were computed.
-    enriched_parquet_name : str, optional
-        Output Parquet filename inside ``output_dir``.
-    run_assembly_bias_plot : bool, optional
-        If True, write the tidal assembly-bias PDF after enrichment.
-    assembly_bias_only : bool, optional
-        If True, skip pipeline stages and rebuild the assembly-bias PDF from
-        cached HR/LR Parquet tables under ``output_dir``.
-    assembly_bias_hr_parquet : Optional[Path], optional
-        HR table Parquet for ``assembly_bias_only``; defaults to the preprocess
-        HR filename inside ``output_dir``.
-    assembly_bias_enriched_parquet : Optional[Path], optional
-        Enriched LR Parquet for ``assembly_bias_only``; defaults to
-        ``enriched_parquet_name`` inside ``output_dir``.
-    assembly_bias_mass_column_fastpm : Optional[str], optional
-        LR mass column for assembly-bias binning when reading cached tables.
-    assembly_bias_n_grid : int, optional
-        Grid resolution for the Paranjape assembly-bias diagnostic.
-    run_holdout_corner_plots : bool, optional
-        If True, write per-bin SIM hold-out corner plots during enrichment.
-    collect_tables : bool, optional
-        If True, return HR/LR tables in ``HaloscopeEnrichmentRun``.
-    mass_calibration : MassCalibrationConfig, optional
-        LR mass calibration method and hyperparameters for preprocessing.
-    mass_filter : HaloMassFilterConfig, optional
-        Optional ``M200b`` range applied to HR and LR tables during preprocessing.
-    mass_bin : HaloscopeMassBinConfig, optional
-        Optional log-mass bin edges for Haloscope fit and FastPM enrichment.
-    box_size_mpc_h : Optional[float], optional
-        Periodic box side length in Mpc/h for both simulations. When ``None``,
-        ``SIM_BOXSIZE_MPC_H`` and ``FASTPM_BOXSIZE_MPC_H`` from run defaults apply.
-    pipeline_stages : HaloscopePipelineStages, optional
-        Optional multi-stage pipeline toggles. When left at defaults, only the
-        Haloscope enrichment stage runs (legacy behaviour).
+    Full run configuration: ``run_name``, ``general``, and ``pipeline``.
     """
 
-    sim_hlist_path: Path
-    fastpm_list_path: Path
-    repo_root: Path = Path.cwd()
-    box_size_mpc_h: Optional[float] = None
-    output_dir: Path = OUTPUT_DIR
-    pipeline_stages: HaloscopePipelineStages = field(default_factory=_default_pipeline_stages)
-    max_sim_halos: Optional[int] = None
-    max_fastpm_halos: Optional[int] = None
-    max_descriptor_batch_files: Optional[int] = None
-    min_bin_size: int = PRODUCTION_MIN_BIN_SIZE
-    run_holdout_validation: bool = True
-    input_features: tuple[str, ...] = INPUT_FEATURES
-    unit_descriptors_dir: Optional[Path] = None
-    fastpm_descriptors_dir: Optional[Path] = None
-    tidal_n_grid: int = TIDAL_DENSITY_N_GRID
-    enriched_parquet_name: str = ENRICHED_PARQUET_NAME
-    run_assembly_bias_plot: bool = False
-    assembly_bias_only: bool = False
-    assembly_bias_hr_parquet: Optional[Path] = None
-    assembly_bias_enriched_parquet: Optional[Path] = None
-    assembly_bias_mass_column_fastpm: Optional[str] = None
-    assembly_bias_n_grid: int = DEFAULT_ASSEMBLY_BIAS_N_GRID
-    run_holdout_corner_plots: bool = False
-    collect_tables: bool = False
-    mass_calibration: MassCalibrationConfig = field(
-        default_factory=default_mass_calibration_config
-    )
-    mass_filter: HaloMassFilterConfig = field(default_factory=default_halo_mass_filter_config)
-    mass_bin: HaloscopeMassBinConfig = field(default_factory=default_haloscope_mass_bin_config)
+    run_name: str
+    general: GeneralConfig
+    pipeline: HaloscopePipelineFlowConfig
 
+    @property
+    def sim_hlist_path(self) -> Path:
+        """
+        HR halo catalog path (legacy alias for enrichment modules).
 
-def _optional_path(value: Any) -> Optional[Path]:
-    """
-    Convert a JSON value to an optional filesystem path.
+        Returns
+        -------
+        Path
+            Path from ``general.sim_hlist``.
+        """
+        return self.general.sim_hlist
 
-    Parameters
-    ----------
-    value : Any
-        Raw JSON value.
+    @property
+    def fastpm_list_path(self) -> Path:
+        """
+        LR halo catalog path (legacy alias for enrichment modules).
 
-    Returns
-    -------
-    Optional[Path]
-        Parsed path, or ``None`` when the value is null or empty.
-    """
-    if value is None:
+        Returns
+        -------
+        Path
+            Path from ``general.fastpm_list``.
+        """
+        return self.general.fastpm_list
+
+    @property
+    def repo_root(self) -> Path:
+        """
+        Repository root directory.
+
+        Returns
+        -------
+        Path
+            Path from ``general.repo_root``.
+        """
+        return self.general.repo_root
+
+    @property
+    def output_dir(self) -> Path:
+        """
+        Run output directory.
+
+        Returns
+        -------
+        Path
+            Path from ``general.output_dir``.
+        """
+        return self.general.output_dir
+
+    @property
+    def input_features(self) -> tuple[str, ...]:
+        """
+        Haloscope INPUT feature names for this run.
+
+        Returns
+        -------
+        tuple[str, ...]
+            Feature names from ``general.input_features``.
+        """
+        return tuple(self.general.input_features)
+
+    @property
+    def unit_descriptors_dir(self) -> Optional[Path]:
+        """
+        UNIT tidal descriptor directory override.
+
+        Returns
+        -------
+        Optional[Path]
+            Path from ``general.unit_descriptors_dir``.
+        """
+        return self.general.unit_descriptors_dir
+
+    @unit_descriptors_dir.setter
+    def unit_descriptors_dir(self, value: Optional[Path]) -> None:
+        self.general.unit_descriptors_dir = value
+
+    @property
+    def fastpm_descriptors_dir(self) -> Optional[Path]:
+        """
+        FastPM tidal descriptor directory override.
+
+        Returns
+        -------
+        Optional[Path]
+            Path from ``general.fastpm_descriptors_dir``.
+        """
+        return self.general.fastpm_descriptors_dir
+
+    @fastpm_descriptors_dir.setter
+    def fastpm_descriptors_dir(self, value: Optional[Path]) -> None:
+        self.general.fastpm_descriptors_dir = value
+
+    @property
+    def max_sim_halos(self) -> Optional[int]:
+        """
+        Optional cap on loaded HR halos.
+
+        Returns
+        -------
+        Optional[int]
+            ``preprocessing.sample.max_sim_halos``.
+        """
+        return self.pipeline.preprocessing.sample.max_sim_halos
+
+    @property
+    def max_fastpm_halos(self) -> Optional[int]:
+        """
+        Optional cap on loaded LR halos.
+
+        Returns
+        -------
+        Optional[int]
+            ``preprocessing.sample.max_fastpm_halos``.
+        """
+        return self.pipeline.preprocessing.sample.max_fastpm_halos
+
+    @property
+    def tidal_n_grid(self) -> int:
+        """
+        CIC grid resolution for tidal descriptors.
+
+        Returns
+        -------
+        int
+            ``environment_features.n_grid``.
+        """
+        return self.pipeline.environment_features.n_grid
+
+    @property
+    def mass_correction(self) -> MassCorrectionSettings:
+        """
+        LR mass correction settings derived from preprocessing JSON.
+
+        Returns
+        -------
+        MassCorrectionSettings
+            Runtime settings for ``preprocessing.mass_correction`` apply step.
+        """
+        return mass_correction_settings_from_preprocessing(self.pipeline.preprocessing)
+
+    @property
+    def mass_filter(self) -> HaloMassFilterConfig:
+        """
+        Optional mass range filter from preprocessing sample settings.
+
+        Returns
+        -------
+        HaloMassFilterConfig
+            Filter with sample mass bounds.
+        """
+        sample = self.pipeline.preprocessing.sample
+        return HaloMassFilterConfig(
+            min_mass_msun_h=sample.min_mass_msun_h,
+            max_mass_msun_h=sample.max_mass_msun_h,
+        )
+
+    @property
+    def enriched_parquet_name(self) -> str:
+        """
+        Filename for enriched LR Parquet output.
+
+        Returns
+        -------
+        str
+            ``haloscope.enriched_parquet_name``.
+        """
+        return self.pipeline.haloscope.enriched_parquet_name
+
+    @property
+    def min_bin_size(self) -> int:
+        """
+        Minimum halos per mass bin for Haloscope fitting.
+
+        Returns
+        -------
+        int
+            ``haloscope.min_bin_size``.
+        """
+        return self.pipeline.haloscope.min_bin_size
+
+    @property
+    def run_holdout_validation(self) -> bool:
+        """
+        Whether to run hold-out validation during enrichment.
+
+        Returns
+        -------
+        bool
+            ``haloscope.run_holdout_validation``.
+        """
+        return self.pipeline.haloscope.run_holdout_validation
+
+    @property
+    def run_holdout_corner_plots(self) -> bool:
+        """
+        Whether to write hold-out corner plots.
+
+        Returns
+        -------
+        bool
+            Same as ``run_holdout_validation`` until a dedicated flag exists.
+        """
+        return self.pipeline.haloscope.run_holdout_validation
+
+    @property
+    def run_assembly_bias_plot(self) -> bool:
+        """
+        Whether to write assembly-bias validation plots.
+
+        Returns
+        -------
+        bool
+            ``validation.enabled``.
+        """
+        return self.pipeline.validation.enabled
+
+    @property
+    def assembly_bias_n_grid(self) -> int:
+        """
+        Grid resolution for assembly-bias panels.
+
+        Returns
+        -------
+        int
+            ``validation.n_grid``.
+        """
+        return self.pipeline.validation.n_grid
+
+    @property
+    def collect_tables(self) -> bool:
+        """
+        Whether enrichment should return in-memory tables.
+
+        Returns
+        -------
+        bool
+            Always False for the simplified pipeline config.
+        """
+        return False
+
+    @property
+    def mass_bin(self) -> HaloscopeMassBinConfig:
+        """
+        Optional custom mass-bin edges for Haloscope.
+
+        Returns
+        -------
+        HaloscopeMassBinConfig
+            Default multi-bin configuration.
+        """
+        return default_haloscope_mass_bin_config()
+
+    @property
+    def max_descriptor_batch_files(self) -> Optional[int]:
+        """
+        Smoke cap on tidal descriptor batch files.
+
+        Returns
+        -------
+        Optional[int]
+            Not configurable in the template; always ``None``.
+        """
         return None
-    text = str(value).strip()
-    if not text:
-        return None
-    return Path(text)
 
 
-def _required_path(value: Any, default: Path) -> Path:
+def mass_correction_settings_from_preprocessing(
+    preprocessing: PreprocessingConfig,
+) -> MassCorrectionSettings:
     """
-    Resolve a required path from JSON, falling back to a default.
+    Build runtime mass-correction settings from the preprocessing JSON block.
 
     Parameters
     ----------
-    value : Any
-        Raw JSON value.
-    default : Path
-        Default path when ``value`` is null or empty.
+    preprocessing : PreprocessingConfig
+        Preprocessing stage settings.
 
     Returns
     -------
-    Path
-        Resolved path.
-    """
-    resolved = _optional_path(value)
-    return default if resolved is None else resolved
-
-
-def _optional_float(value: Any) -> Optional[float]:
-    """
-    Convert a JSON value to an optional float.
-
-    Parameters
-    ----------
-    value : Any
-        Raw JSON value.
-
-    Returns
-    -------
-    Optional[float]
-        Parsed float, or ``None`` when unset.
-    """
-    if value is None:
-        return None
-    return float(value)
-
-
-def _optional_int(value: Any) -> Optional[int]:
-    """
-    Convert a JSON value to an optional integer cap.
-
-    Parameters
-    ----------
-    value : Any
-        Raw JSON value.
-
-    Returns
-    -------
-    Optional[int]
-        Parsed integer, or ``None`` when unlimited.
-    """
-    if value is None:
-        return None
-    return int(value)
-
-
-def _feature_tuple(value: Any, default: Sequence[str]) -> tuple[str, ...]:
-    """
-    Parse Haloscope INPUT feature names from JSON.
-
-    Parameters
-    ----------
-    value : Any
-        Raw JSON value.
-    default : Sequence[str]
-        Default feature list when ``value`` is null.
-
-    Returns
-    -------
-    tuple[str, ...]
-        Feature names in run order.
-    """
-    if value is None:
-        return tuple(default)
-    return tuple(str(item) for item in value)
-
-
-def resolve_sim_boxsize_mpc_h(config: HaloscopeEnrichmentConfig) -> float:
-    """
-    Resolve the SIM periodic box size for preprocessing.
-
-    Parameters
-    ----------
-    config : HaloscopeEnrichmentConfig
-        Run configuration loaded from JSON or built programmatically.
-
-    Returns
-    -------
-    float
-        Box side length in Mpc/h.
-    """
-    if config.box_size_mpc_h is not None:
-        return float(config.box_size_mpc_h)
-    return float(SIM_BOXSIZE_MPC_H)
-
-
-def _normalize_pipeline_target(target: str) -> str:
-    """
-    Normalize a pipeline target name to ``unit`` or ``fastpm``.
-
-    Parameters
-    ----------
-    target : str
-        Target label from JSON (``unit``, ``fastpm``, ``hr``, or ``lr``).
-
-    Returns
-    -------
-    str
-        Canonical target name.
+    MassCorrectionSettings
+        Settings consumed by ``apply_mass_correction``.
 
     Raises
     ------
     ValueError
-        If the target label is not supported.
+        If the correction method is not supported.
     """
-    normalized = str(target).strip().lower()
-    canonical = _PIPELINE_TARGET_ALIASES.get(normalized, normalized)
-    if canonical not in {PIPELINE_TARGET_UNIT, PIPELINE_TARGET_FASTPM}:
+    mass_block = preprocessing.mass_correction
+    method = str(mass_block.method)
+    if method not in MASS_CORRECTION_METHODS:
         raise ValueError(
-            f"Unsupported pipeline target '{target}'; expected unit, fastpm, hr, or lr."
+            f"Unknown mass correction method '{method}'; "
+            f"expected one of {', '.join(MASS_CORRECTION_METHODS)}."
         )
-    return canonical
+    params = dict(mass_block.params_method or {})
+    matching_payload = params.pop("matching", {})
+    if not isinstance(matching_payload, dict):
+        matching_payload = {}
+    matching = _parse_matching(matching_payload)
+    matching_ml = _parse_matching_ml(params)
+    sample = preprocessing.sample
+    return MassCorrectionSettings(
+        enabled=True,
+        method=method,
+        corrected_column=mass_block.correction_column,
+        matching=matching,
+        matching_ml=matching_ml,
+        auto_lr_correction_min_mass_from_hmf=sample.get_min_mass_lr_from_hmf,
+    )
 
 
-def _target_tuple(value: Any, default: Sequence[str]) -> tuple[str, ...]:
+def _parse_tidal_target(raw: dict) -> TidalAnisotropyTargetConfig:
     """
-    Parse pipeline target names from JSON.
+    Parse one tidal-anisotropy target from JSON.
 
     Parameters
     ----------
-    value : Any
-        Raw JSON value.
-    default : Sequence[str]
-        Default targets when ``value`` is null.
-
-    Returns
-    -------
-    tuple[str, ...]
-        Canonical target names in run order.
-    """
-    if value is None:
-        return tuple(_normalize_pipeline_target(item) for item in default)
-    return tuple(_normalize_pipeline_target(str(item)) for item in value)
-
-
-def _parse_tidal_target_config(
-    payload: dict[str, Any],
-    default_layout: str,
-    default_dm_particles: Optional[Path],
-    default_work_dir: Path,
-) -> TidalAnisotropyTargetConfig:
-    """
-    Parse per-simulation tidal-anisotropy settings from JSON.
-
-    Parameters
-    ----------
-    payload : dict[str, Any]
-        Target-specific JSON object.
-    default_layout : str
-        Default Rockstar catalog column layout.
-    default_dm_particles : Optional[Path]
-        Default DM particle source when omitted.
-    default_work_dir : Path
-        Default working directory when omitted.
+    raw : dict
+        Target object from ``targets`` array.
 
     Returns
     -------
     TidalAnisotropyTargetConfig
         Parsed target settings.
     """
-    dm_particles = _optional_path(payload.get("dm_particles_file"))
-    if dm_particles is None:
-        dm_particles = default_dm_particles
-    work_dir = _optional_path(payload.get("work_dir"))
-    if work_dir is None:
-        work_dir = default_work_dir
-    layout = str(payload.get("catalog_layout", default_layout))
+    mass_particle = raw.get("mass_particle")
     return TidalAnisotropyTargetConfig(
-        dm_particles_file=dm_particles,
-        work_dir=work_dir,
-        catalog_layout=layout,
-        read_tensor_from_disk=bool(payload.get("read_tensor_from_disk", False)),
+        name=str(raw["name"]),
+        dm_particles_file=_parse_path(raw.get("dm_particles_file")),
+        work_dir=_parse_path(raw.get("work_dir")),
+        catalog_layout=str(raw.get("catalog_layout", "hlist")),
+        read_tensor_from_disk=bool(raw.get("read_tensor_from_disk", False)),
+        descriptors_dir=_parse_path(raw.get("descriptors_dir")),
+        mass_particle=(
+            float(mass_particle) if mass_particle is not None else DM_MASS_PARTICLE_MSUN_H
+        ),
+        max_halos=raw.get("max_halos"),
     )
 
 
-def _parse_pipeline_stages(
-    payload: dict[str, Any],
-    output_dir: Path,
-) -> HaloscopePipelineStages:
+def _parse_environment_features(raw: dict) -> EnvironmentFeaturesConfig:
     """
-    Parse optional multi-stage pipeline settings from JSON.
+    Parse the environment-features pipeline subsection.
 
     Parameters
     ----------
-    payload : dict[str, Any]
-        Root JSON object.
-    output_dir : Path
-        Run output directory used for default work dirs.
+    raw : dict
+        Raw subsection dict.
 
     Returns
     -------
-    HaloscopePipelineStages
-        Parsed stage toggles.
+    EnvironmentFeaturesConfig
+        Parsed stage config.
     """
-    pipeline = payload.get("pipeline")
-    if pipeline is None:
-        return HaloscopePipelineStages()
-
-    tidal_payload = pipeline.get("tidal_anisotropy", {})
-    preprocess_payload = pipeline.get("preprocess", {})
-    haloscope_payload = pipeline.get("haloscope", {})
-
-    unit_defaults = TidalAnisotropyTargetConfig(
-        dm_particles_file=default_sim_dm_particles_path(),
-        work_dir=output_dir / PIPELINE_TARGET_UNIT,
-        catalog_layout=HLIST_CATALOG_LAYOUT,
-    )
-    fastpm_defaults = TidalAnisotropyTargetConfig(
-        dm_particles_file=default_fastpm_dm_particles_path(),
-        work_dir=output_dir / PIPELINE_TARGET_FASTPM,
-        catalog_layout=ROCKSTAR_LIST_CATALOG_LAYOUT,
-    )
-
-    unit_target = _parse_tidal_target_config(
-        tidal_payload.get("unit", {}),
-        default_layout=HLIST_CATALOG_LAYOUT,
-        default_dm_particles=unit_defaults.dm_particles_file,
-        default_work_dir=unit_defaults.work_dir or output_dir / PIPELINE_TARGET_UNIT,
-    )
-    fastpm_target = _parse_tidal_target_config(
-        tidal_payload.get("fastpm", {}),
-        default_layout=ROCKSTAR_LIST_CATALOG_LAYOUT,
-        default_dm_particles=fastpm_defaults.dm_particles_file,
-        default_work_dir=fastpm_defaults.work_dir or output_dir / PIPELINE_TARGET_FASTPM,
-    )
-
-    return HaloscopePipelineStages(
-        tidal_anisotropy=TidalAnisotropyStageConfig(
-            enabled=bool(tidal_payload.get("enabled", False)),
-            targets=_target_tuple(
-                tidal_payload.get("targets"),
-                (PIPELINE_TARGET_UNIT, PIPELINE_TARGET_FASTPM),
-            ),
-            mass_particle=float(tidal_payload.get("mass_particle", DM_MASS_PARTICLE_MSUN_H)),
-            cic_batch_size=_optional_int(tidal_payload.get("cic_batch_size")),
-            descriptor_batch_size=_optional_int(
-                tidal_payload.get("descriptor_batch_size", DEFAULT_DESCRIPTOR_BATCH_SIZE)
-            ),
-            unit=unit_target,
-            fastpm=fastpm_target,
+    targets_raw = raw.get("targets") or []
+    targets = [_parse_tidal_target(item) for item in targets_raw]
+    cic_batch_size = raw.get("cic_batch_size")
+    descriptor_batch_size = raw.get("descriptor_batch_size", DEFAULT_DESCRIPTOR_BATCH_SIZE)
+    return EnvironmentFeaturesConfig(
+        enabled=bool(raw.get("enabled", False)),
+        n_grid=int(raw.get("n_grid", 512)),
+        cic_batch_size=int(cic_batch_size) if cic_batch_size is not None else None,
+        descriptor_batch_size=(
+            int(descriptor_batch_size)
+            if descriptor_batch_size is not None
+            else DEFAULT_DESCRIPTOR_BATCH_SIZE
         ),
-        preprocess=PreprocessStageConfig(
-            enabled=bool(preprocess_payload.get("enabled", False)),
-            hr_parquet_name=str(
-                preprocess_payload.get("hr_parquet_name", "hr_preprocessed.parquet")
-            ),
-            lr_parquet_name=str(
-                preprocess_payload.get("lr_parquet_name", "lr_preprocessed.parquet")
-            ),
-        ),
-        haloscope=HaloscopeStageConfig(
-            enabled=bool(haloscope_payload.get("enabled", True)),
-        ),
+        targets=targets,
     )
 
 
-def resolve_fastpm_boxsize_mpc_h(config: HaloscopeEnrichmentConfig) -> float:
+def _parse_sample(raw: dict) -> SampleConfig:
     """
-    Resolve the FastPM periodic box size for preprocessing.
+    Parse the preprocessing ``sample`` object.
 
     Parameters
     ----------
-    config : HaloscopeEnrichmentConfig
-        Run configuration loaded from JSON or built programmatically.
+    raw : dict
+        Raw sample dict.
 
     Returns
     -------
-    float
-        Box side length in Mpc/h.
+    SampleConfig
+        Parsed sample limits.
     """
-    if config.box_size_mpc_h is not None:
-        return float(config.box_size_mpc_h)
-    return float(FASTPM_BOXSIZE_MPC_H)
+    return SampleConfig(
+        box_size_mpc_h=float(raw["box_size_mpc_h"]),
+        min_mass_msun_h=float(raw["min_mass_msun_h"]),
+        get_min_mass_lr_from_hmf=bool(raw.get("get_min_mass_lr_from_hmf", False)),
+        max_mass_msun_h=raw.get("max_mass_msun_h"),
+        max_sim_halos=raw.get("max_sim_halos"),
+        max_fastpm_halos=raw.get("max_fastpm_halos"),
+    )
+
+
+def _parse_preprocessing(raw: dict) -> PreprocessingConfig:
+    """
+    Parse the preprocessing pipeline subsection.
+
+    Parameters
+    ----------
+    raw : dict
+        Raw subsection dict.
+
+    Returns
+    -------
+    PreprocessingConfig
+        Parsed stage config.
+    """
+    mass_raw = raw.get("mass_correction") or {}
+    method = str(mass_raw.get("method", "abundance_matching"))
+    if method not in MASS_CORRECTION_METHODS:
+        raise ValueError(
+            f"Unknown mass correction method '{method}'; "
+            f"expected one of {', '.join(MASS_CORRECTION_METHODS)}."
+        )
+    return PreprocessingConfig(
+        enabled=bool(raw.get("enabled", True)),
+        hr_parquet_name=str(raw["hr_parquet_name"]),
+        lr_parquet_name=str(raw["lr_parquet_name"]),
+        sample=_parse_sample(raw.get("sample") or {}),
+        mass_correction=MassCorrectionConfig(
+            method=method,
+            correction_column=str(mass_raw.get("correction_column", "M200b_cal")),
+            params_method=dict(mass_raw.get("params_method") or {}),
+        ),
+    )
+
+
+def _parse_haloscope(raw: dict) -> HaloscopeConfig:
+    """
+    Parse the haloscope pipeline subsection.
+
+    Parameters
+    ----------
+    raw : dict
+        Raw subsection dict.
+
+    Returns
+    -------
+    HaloscopeConfig
+        Parsed stage config.
+    """
+    return HaloscopeConfig(
+        enabled=bool(raw.get("enabled", True)),
+        input_features=list(raw.get("input_features") or []),
+        run_holdout_validation=bool(raw.get("run_holdout_validation", True)),
+        min_bin_size=int(raw.get("min_bin_size", 9)),
+        enriched_parquet_name=str(raw.get("enriched_parquet_name", "haloscope_enriched.parquet")),
+    )
+
+
+def _parse_validation(raw: dict) -> ValidationConfig:
+    """
+    Parse the validation pipeline subsection.
+
+    Parameters
+    ----------
+    raw : dict
+        Raw subsection dict.
+
+    Returns
+    -------
+    ValidationConfig
+        Parsed validation config.
+    """
+    return ValidationConfig(
+        enabled=bool(raw.get("enabled", False)),
+        n_grid=int(raw.get("n_grid", 256)),
+    )
+
+
+def _parse_general(raw: dict) -> GeneralConfig:
+    """
+    Parse the top-level ``general`` section.
+
+    Parameters
+    ----------
+    raw : dict
+        Raw ``general`` dict.
+
+    Returns
+    -------
+    GeneralConfig
+        Parsed paths and output directory.
+    """
+    return GeneralConfig(
+        sim_hlist=_parse_path(raw.get("sim_hlist"), Path("sim_hlist.list")),
+        fastpm_list=_parse_path(raw.get("fastpm_list"), Path("fastpm.list")),
+        repo_root=_parse_path(raw.get("repo_root"), Path.cwd()),
+        output_dir=_parse_path(raw.get("output_dir"), OUTPUT_DIR),
+        input_features=list(raw.get("input_features") or INPUT_FEATURES),
+        unit_descriptors_dir=_parse_path(raw.get("unit_descriptors_dir")),
+        fastpm_descriptors_dir=_parse_path(raw.get("fastpm_descriptors_dir")),
+    )
 
 
 def resolve_sim_dm_particles_path(config: HaloscopeEnrichmentConfig) -> Optional[Path]:
     """
-    Resolve the UNIT DM particle path for assembly-bias matter overdensity.
+    DM particle file for the UNIT target when configured.
 
     Parameters
     ----------
     config : HaloscopeEnrichmentConfig
-        Run configuration loaded from JSON or built programmatically.
+        Loaded run configuration.
 
     Returns
     -------
     Optional[Path]
-        DM particle file or snapshot block, or ``None`` when not configured.
+        UNIT ``dm_particles_file`` when present.
     """
-    unit_dm_path = config.pipeline_stages.tidal_anisotropy.unit.dm_particles_file
-    if unit_dm_path is not None:
-        return unit_dm_path
-    return default_sim_dm_particles_path()
+    target = tidal_target_by_name(config, PIPELINE_TARGET_UNIT)
+    if target is None:
+        return None
+    return target.dm_particles_file
 
 
 def resolve_fastpm_dm_particles_path(config: HaloscopeEnrichmentConfig) -> Optional[Path]:
     """
-    Resolve the FastPM DM particle path for assembly-bias matter overdensity.
+    DM particle file for the FastPM target when configured.
 
     Parameters
     ----------
     config : HaloscopeEnrichmentConfig
-        Run configuration loaded from JSON or built programmatically.
+        Loaded run configuration.
 
     Returns
     -------
     Optional[Path]
-        DM particle file or snapshot block, or ``None`` when not configured.
+        FastPM ``dm_particles_file`` when present.
     """
-    fastpm_dm_path = config.pipeline_stages.tidal_anisotropy.fastpm.dm_particles_file
-    if fastpm_dm_path is not None:
-        return fastpm_dm_path
-    return default_fastpm_dm_particles_path()
+    target = tidal_target_by_name(config, PIPELINE_TARGET_FASTPM)
+    if target is None:
+        return None
+    return target.dm_particles_file
 
 
-def resolve_assembly_bias_hr_parquet_path(config: HaloscopeEnrichmentConfig) -> Path:
+def resolve_dm_mass_particle_msun_h(config: HaloscopeEnrichmentConfig) -> float:
     """
-    Resolve the HR Parquet path for assembly-bias-only runs.
+    DM particle mass for environment-feature CIC deposition.
 
     Parameters
     ----------
     config : HaloscopeEnrichmentConfig
-        Run configuration loaded from JSON or built programmatically.
+        Loaded run configuration.
+
+    Returns
+    -------
+    float
+        Target ``mass_particle`` or the module default.
+    """
+    target = tidal_target_by_name(config, PIPELINE_TARGET_UNIT)
+    if target is not None and target.mass_particle is not None:
+        return float(target.mass_particle)
+    return float(DM_MASS_PARTICLE_MSUN_H)
+
+
+def resolve_sim_boxsize_mpc_h(config: HaloscopeEnrichmentConfig) -> float:
+    """
+    HR simulation box side in Mpc/h from preprocessing sample settings.
+
+    Parameters
+    ----------
+    config : HaloscopeEnrichmentConfig
+        Loaded run configuration.
+
+    Returns
+    -------
+    float
+        ``preprocessing.sample.box_size_mpc_h``.
+    """
+    return float(config.pipeline.preprocessing.sample.box_size_mpc_h)
+
+
+def resolve_fastpm_boxsize_mpc_h(config: HaloscopeEnrichmentConfig) -> float:
+    """
+    LR simulation box side in Mpc/h from preprocessing sample settings.
+
+    Parameters
+    ----------
+    config : HaloscopeEnrichmentConfig
+        Loaded run configuration.
+
+    Returns
+    -------
+    float
+        ``preprocessing.sample.box_size_mpc_h``.
+    """
+    return float(config.pipeline.preprocessing.sample.box_size_mpc_h)
+
+
+def resolve_assembly_bias_hr_parquet_path(config: HaloscopeEnrichmentConfig) -> Path:
+    """
+    HR Parquet path under ``general.output_dir``.
+
+    Parameters
+    ----------
+    config : HaloscopeEnrichmentConfig
+        Loaded run configuration.
 
     Returns
     -------
     Path
         HR table Parquet path.
     """
-    if config.assembly_bias_hr_parquet is not None:
-        return Path(config.assembly_bias_hr_parquet)
-    out_dir = Path(config.output_dir)
-    hr_name = config.pipeline_stages.preprocess.hr_parquet_name
-    return out_dir / hr_name
+    prep = config.pipeline.preprocessing
+    return config.general.output_dir / prep.hr_parquet_name
 
 
 def resolve_assembly_bias_enriched_parquet_path(config: HaloscopeEnrichmentConfig) -> Path:
     """
-    Resolve the enriched LR Parquet path for assembly-bias-only runs.
+    Enriched LR Parquet path under ``general.output_dir``.
 
     Parameters
     ----------
     config : HaloscopeEnrichmentConfig
-        Run configuration loaded from JSON or built programmatically.
+        Loaded run configuration.
 
     Returns
     -------
     Path
         Enriched LR table Parquet path.
     """
-    if config.assembly_bias_enriched_parquet is not None:
-        return Path(config.assembly_bias_enriched_parquet)
-    out_dir = Path(config.output_dir)
-    return out_dir / config.enriched_parquet_name
+    haloscope = config.pipeline.haloscope
+    return config.general.output_dir / haloscope.enriched_parquet_name
 
 
 def resolve_assembly_bias_mass_column_fastpm(config: HaloscopeEnrichmentConfig) -> str:
     """
-    Resolve the LR mass column used for assembly-bias binning.
+    LR mass column used after mass correction.
 
     Parameters
     ----------
     config : HaloscopeEnrichmentConfig
-        Run configuration loaded from JSON or built programmatically.
+        Loaded run configuration.
 
     Returns
     -------
     str
-        Mass column name on the enriched LR table.
+        Mass column name on the LR table.
     """
-    if config.assembly_bias_mass_column_fastpm is not None:
-        return config.assembly_bias_mass_column_fastpm
-    if config.mass_calibration.enabled:
-        return config.mass_calibration.calibrated_column
-    return config.mass_calibration.matching.lr_mass_column
+    return config.pipeline.preprocessing.mass_correction.correction_column
 
 
-def resolve_dm_mass_particle_msun_h(config: HaloscopeEnrichmentConfig) -> float:
+def tidal_target_by_name(
+    config: HaloscopeEnrichmentConfig,
+    name: str,
+) -> Optional[TidalAnisotropyTargetConfig]:
     """
-    Resolve the DM particle mass used for assembly-bias CIC deposition.
+    Look up a tidal target by ``name`` (``unit`` or ``fastpm``).
 
     Parameters
     ----------
     config : HaloscopeEnrichmentConfig
-        Run configuration loaded from JSON or built programmatically.
+        Loaded run configuration.
+    name : str
+        Target name.
 
     Returns
     -------
-    float
-        DM particle mass in Msun/h.
+    Optional[TidalAnisotropyTargetConfig]
+        Matching target, or ``None``.
     """
-    return float(config.pipeline_stages.tidal_anisotropy.mass_particle)
+    for target in config.pipeline.environment_features.targets:
+        if target.name == name:
+            return target
+    return None
+
+
+def resolve_descriptor_dir_for_target(
+    config: HaloscopeEnrichmentConfig,
+    target_name: str,
+) -> Optional[Path]:
+    """
+    Resolve tidal descriptor directory for one simulation target.
+
+    Parameters
+    ----------
+    config : HaloscopeEnrichmentConfig
+        Loaded run configuration.
+    target_name : str
+        ``unit`` or ``fastpm``.
+
+    Returns
+    -------
+    Optional[Path]
+        Descriptor directory from general overrides or the target block.
+    """
+    if target_name == PIPELINE_TARGET_UNIT:
+        if config.general.unit_descriptors_dir is not None:
+            return config.general.unit_descriptors_dir
+    elif target_name == PIPELINE_TARGET_FASTPM:
+        if config.general.fastpm_descriptors_dir is not None:
+            return config.general.fastpm_descriptors_dir
+    target = tidal_target_by_name(config, target_name)
+    if target is None:
+        return None
+    return target.descriptors_dir
 
 
 def load_haloscope_enrichment_config(config_path: Path) -> HaloscopeEnrichmentConfig:
@@ -804,111 +936,18 @@ def load_haloscope_enrichment_config(config_path: Path) -> HaloscopeEnrichmentCo
     if not isinstance(payload, dict):
         raise ValueError(f"Haloscope run config must be a JSON object: {path}")
 
-    paths = payload.get("paths", {})
-    sample = payload.get("sample", {})
-    box_size_mpc_h = _optional_float(sample.get("box_size_mpc_h", payload.get("box_size_mpc_h")))
-    haloscope = payload.get("haloscope", {})
-    tidal = payload.get("tidal", {})
-    validation = payload.get("validation", {})
-    assembly_bias = validation.get("assembly_bias", {})
-    holdout_corner_plots = validation.get("holdout_corner_plots", {})
-    output_dir = _required_path(paths.get("output_dir"), OUTPUT_DIR)
-    pipeline_stages = _parse_pipeline_stages(payload, output_dir)
-    mass_calibration = parse_mass_calibration_config(
-        payload,
-        haloscope,
-        legacy_calibrate_mass=payload.get("calibrate_mass"),
-    )
-    mass_filter = parse_halo_mass_filter_config(sample)
-    mass_bin = parse_haloscope_mass_bin_config(haloscope)
+    general = payload.get("general") or {}
+    pipeline = payload.get("pipeline") or {}
 
     return HaloscopeEnrichmentConfig(
-        sim_hlist_path=_required_path(
-            paths.get("sim_hlist"),
-            default_sim_hlist_path(),
+        run_name=str(payload.get("run_name") or path.stem),
+        general=_parse_general(general),
+        pipeline=HaloscopePipelineFlowConfig(
+            environment_features=_parse_environment_features(
+                _pipeline_environment_features(pipeline),
+            ),
+            preprocessing=_parse_preprocessing(pipeline.get("preprocessing") or {}),
+            haloscope=_parse_haloscope(pipeline.get("haloscope") or {}),
+            validation=_parse_validation(pipeline.get("validation") or {}),
         ),
-        fastpm_list_path=_required_path(
-            paths.get("fastpm_list"),
-            default_fastpm_list_path(),
-        ),
-        repo_root=_required_path(paths.get("repo_root"), Path.cwd()),
-        output_dir=output_dir,
-        box_size_mpc_h=box_size_mpc_h,
-        pipeline_stages=pipeline_stages,
-        max_sim_halos=_optional_int(sample.get("max_sim_halos")),
-        max_fastpm_halos=_optional_int(sample.get("max_fastpm_halos")),
-        max_descriptor_batch_files=_optional_int(sample.get("max_descriptor_batch_files")),
-        min_bin_size=int(haloscope.get("min_bin_size", PRODUCTION_MIN_BIN_SIZE)),
-        run_holdout_validation=bool(haloscope.get("run_holdout_validation", True)),
-        input_features=_feature_tuple(haloscope.get("input_features"), INPUT_FEATURES),
-        unit_descriptors_dir=_optional_path(tidal.get("unit_descriptors_dir")),
-        fastpm_descriptors_dir=_optional_path(tidal.get("fastpm_descriptors_dir")),
-        tidal_n_grid=int(tidal.get("n_grid", TIDAL_DENSITY_N_GRID)),
-        enriched_parquet_name=str(haloscope.get("enriched_parquet_name", ENRICHED_PARQUET_NAME)),
-        run_assembly_bias_plot=bool(assembly_bias.get("enabled", False)),
-        assembly_bias_only=bool(assembly_bias.get("only", False)),
-        assembly_bias_hr_parquet=_optional_path(assembly_bias.get("hr_parquet")),
-        assembly_bias_enriched_parquet=_optional_path(assembly_bias.get("enriched_parquet")),
-        assembly_bias_mass_column_fastpm=assembly_bias.get("mass_column_fastpm"),
-        assembly_bias_n_grid=int(assembly_bias.get("n_grid", DEFAULT_ASSEMBLY_BIAS_N_GRID)),
-        run_holdout_corner_plots=bool(holdout_corner_plots.get("enabled", False)),
-        collect_tables=bool(payload.get("collect_tables", False)),
-        mass_calibration=mass_calibration,
-        mass_filter=mass_filter,
-        mass_bin=mass_bin,
-    )
-
-
-def tidal_smoke_config(repo_root: Optional[Path] = None) -> HaloscopeEnrichmentConfig:
-    """
-    Build the default tidal smoke configuration without reading JSON.
-
-    Parameters
-    ----------
-    repo_root : Optional[Path], optional
-        Repository root override.
-
-    Returns
-    -------
-    HaloscopeEnrichmentConfig
-        Tidal smoke run settings.
-    """
-    root = Path.cwd() if repo_root is None else Path(repo_root)
-    return HaloscopeEnrichmentConfig(
-        sim_hlist_path=default_sim_hlist_path(),
-        fastpm_list_path=default_fastpm_list_path(),
-        repo_root=root,
-        output_dir=OUTPUT_DIR_TIDAL_SMOKE,
-        max_sim_halos=8000,
-        max_fastpm_halos=8000,
-        max_descriptor_batch_files=1,
-        min_bin_size=SMOKE_MIN_BIN_SIZE,
-        input_features=TIDAL_INPUT_FEATURES,
-        enriched_parquet_name=ENRICHED_TIDAL_PARQUET_NAME,
-    )
-
-
-def tidal_production_config(repo_root: Optional[Path] = None) -> HaloscopeEnrichmentConfig:
-    """
-    Build the default tidal production configuration without reading JSON.
-
-    Parameters
-    ----------
-    repo_root : Optional[Path], optional
-        Repository root override.
-
-    Returns
-    -------
-    HaloscopeEnrichmentConfig
-        Tidal production run settings.
-    """
-    root = Path.cwd() if repo_root is None else Path(repo_root)
-    return HaloscopeEnrichmentConfig(
-        sim_hlist_path=default_sim_hlist_path(),
-        fastpm_list_path=default_fastpm_list_path(),
-        repo_root=root,
-        output_dir=OUTPUT_DIR_TIDAL,
-        min_bin_size=PRODUCTION_MIN_BIN_SIZE,
-        input_features=TIDAL_INPUT_FEATURES,
-        enriched_parquet_name=ENRICHED_TIDAL_PARQUET_NAME,
     )

@@ -9,24 +9,14 @@ import pandas as pd
 
 from density_field_properties.haloscope import enrich_fastpm_catalog
 from density_field_properties.haloscope.mass_bin_config import resolve_mass_bin_edges
-from density_field_properties.pipelines.config import (
-    HaloscopeEnrichmentConfig,
-    resolve_fastpm_boxsize_mpc_h,
-    resolve_sim_boxsize_mpc_h,
-)
+from density_field_properties.pipelines.config import HaloscopeEnrichmentConfig
+from density_field_properties.pipelines.preprocessing_run import build_haloscope_feature_tables
 from density_field_properties.pipelines.run_defaults import (
-    ENV_RADIUS_MPC_H,
     INPUT_FEATURES,
     OUTPUT_FEATURES,
     default_fastpm_tidal_descriptors_dir,
     default_unit_tidal_descriptors_dir,
 )
-from density_field_properties.preprocessing.catalog_loaders import (
-    load_fastpm_target_catalog,
-    load_unit_sim_training_catalog,
-)
-from density_field_properties.preprocessing.context import build_preprocessing_context
-from density_field_properties.preprocessing.feature_table import build_feature_tables
 from density_field_properties.preprocessing.input_features.tidal_anisotropy import (
     input_features_need_tidal_descriptors,
 )
@@ -96,68 +86,13 @@ def _resolve_tidal_descriptor_dirs(
     return unit_path, fastpm_path
 
 
-def build_haloscope_feature_tables(
-    config: HaloscopeEnrichmentConfig,
-) -> tuple[pd.DataFrame, pd.DataFrame, str]:
-    """
-    Load catalogs and attach Haloscope INPUT features.
-
-    Parameters
-    ----------
-    config : HaloscopeEnrichmentConfig
-        Run configuration loaded from JSON or built programmatically.
-
-    Returns
-    -------
-    tuple[pd.DataFrame, pd.DataFrame, str]
-        HR table, LR table, and LR mass column used for bin assignment.
-    """
-    sim_path = Path(config.sim_hlist_path)
-    fastpm_path = Path(config.fastpm_list_path)
-    if not sim_path.is_file():
-        raise FileNotFoundError(f"SIM hlist not found: {sim_path}")
-    if not fastpm_path.is_file():
-        raise FileNotFoundError(f"FastPM catalog not found: {fastpm_path}")
-
-    feature_names = config.input_features if config.input_features else INPUT_FEATURES
-    root = Path(config.repo_root)
-    unit_descriptor_path, fastpm_descriptor_path = _resolve_tidal_descriptor_dirs(
-        feature_names,
-        config.unit_descriptors_dir,
-        config.fastpm_descriptors_dir,
-    )
-
-    halos_sim = load_unit_sim_training_catalog(sim_path, max_halos=config.max_sim_halos)
-    halos_fastpm = load_fastpm_target_catalog(
-        fastpm_path,
-        max_halos=config.max_fastpm_halos,
-    )
-    preprocessing_context = build_preprocessing_context(
-        repo_root=root,
-        mass_calibration=config.mass_calibration,
-        sim_boxsize_mpc_h=resolve_sim_boxsize_mpc_h(config),
-        fastpm_boxsize_mpc_h=resolve_fastpm_boxsize_mpc_h(config),
-        env_radius_mpc_h=ENV_RADIUS_MPC_H,
-        unit_descriptors_dir=unit_descriptor_path,
-        fastpm_descriptors_dir=fastpm_descriptor_path,
-        tidal_n_grid=config.tidal_n_grid,
-        max_descriptor_batch_files=config.max_descriptor_batch_files,
-        mass_filter=config.mass_filter,
-    )
-    return build_feature_tables(
-        halos_sim,
-        halos_fastpm,
-        feature_names,
-        preprocessing_context,
-    )
-
-
 def run_haloscope_enrichment_from_tables(
     config: HaloscopeEnrichmentConfig,
     halos_sim: pd.DataFrame,
     halos_fastpm: pd.DataFrame,
     mass_col_fastpm: str,
     run_enrichment: bool = True,
+    write_assembly_bias: bool = True,
 ) -> Union[Path, HaloscopeEnrichmentRun, None]:
     """
     Run Haloscope enrichment and optional assembly-bias plots from prebuilt tables.
@@ -174,6 +109,8 @@ def run_haloscope_enrichment_from_tables(
         LR mass column used for bin assignment.
     run_enrichment : bool, optional
         If False, skip model fitting and only write assembly-bias diagnostics.
+    write_assembly_bias : bool, optional
+        When False, skip the assembly-bias PDF even if ``validation.enabled``.
 
     Returns
     -------
@@ -184,10 +121,11 @@ def run_haloscope_enrichment_from_tables(
     root = Path(config.repo_root)
     out_dir = Path(config.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    collect_run_tables = config.collect_tables or config.run_assembly_bias_plot
+    run_assembly = write_assembly_bias and config.run_assembly_bias_plot
+    collect_run_tables = config.collect_tables or run_assembly
 
     if not run_enrichment:
-        if not config.run_assembly_bias_plot:
+        if not run_assembly:
             return None
         enriched = halos_fastpm
         out_parquet = out_dir / config.enriched_parquet_name
@@ -257,7 +195,7 @@ def run_haloscope_enrichment_from_tables(
             enriched_lr_table=enriched,
             mass_column_fastpm=mass_col_fastpm,
         )
-        if config.run_assembly_bias_plot:
+        if run_assembly:
             write_tidal_assembly_bias_panel(
                 run_result.hr_table,
                 run_result.enriched_lr_table,
@@ -270,7 +208,7 @@ def run_haloscope_enrichment_from_tables(
             )
             release_validation_memory()
         return run_result
-    if config.run_assembly_bias_plot:
+    if run_assembly:
         write_tidal_assembly_bias_panel(
             halos_sim,
             enriched,
