@@ -1,0 +1,85 @@
+{
+  "run_name": "pipeline_haloscope_template",
+  "general": {
+    "sim_hlist": "output/local_sample/unitsim/hlist_1.00000.list",
+    "fastpm_list": "output/local_sample/fastpm/rockstar_out_pm/out_8.list",
+    "repo_root": ".",
+    "output_dir": "output/local_sample_haloscope_run/haloscope",
+    "input_features": ["overdensity", "tidal_anisotropy"]
+  },
+  "pipeline":{
+    "environment_features": {
+      "enabled": false,
+      "n_grid": 512,
+      "targets": [{
+        "name": "unit",
+        "work_dir": "output/local_sample_haloscope_run/unit",
+        "catalog_layout": "hlist",
+        "descriptors_dir": "output/local_sample_haloscope_run/unit/tidal_anisotropy"
+      },
+      {
+        "name": "fastpm",
+        "work_dir": "output/local_sample_haloscope_run/fastpm",
+        "catalog_layout": "rockstar_list",
+        "descriptors_dir": "output/local_sample_haloscope_run/fastpm/tidal_anisotropy"
+      }]
+    },
+    "preprocessing": {
+      "enabled": true,
+      "hr_parquet_name": "halos_sim_preprocessed.parquet",
+      "lr_parquet_name": "halos_fastpm_preprocessed.parquet",
+      "sample": {
+        "box_size_mpc_h": 200,
+        "min_mass_msun_h": 3.219885e12,
+        "get_min_mass_lr_from_hmf": true,
+        "max_mass_msun_h": null,
+        "max_sim_halos": null,
+        "max_fastpm_halos": null
+      },
+      "mass_correction": {
+        "method": "matching_ml",
+        "correction_column": "M200b_cal",
+        "params_method": {
+          "matching": {
+            "k_neighbours": 10,
+            "r_match_mpc_h": 5.0,
+            "max_mass_distance": 0.95,
+            "max_matching_iterations": 5
+          },
+          "train_subbox": {
+            "x_min_mpc_h": 0.0,
+            "x_max_mpc_h": 100.0,
+            "y_min_mpc_h": 0.0,
+            "y_max_mpc_h": 200.0,
+            "z_min_mpc_h": 0.0,
+            "z_max_mpc_h": 200.0
+          },
+          "ml_features": ["log10_M200b", "delta", "log10_sigma_v"],
+          "regressor": {
+            "type": "xgboost",
+            "params": {
+              "n_estimators": 10,
+              "max_depth": 64,
+              "random_state": 42,
+              "n_jobs": 4,
+              "verbosity": 0
+            }
+          },
+          "keep_threshold": 0.5,
+          "model_path": "output/local_sample_haloscope_run/ml_matching/",
+          "write_model": true
+        }
+      }
+    },
+    "haloscope": {
+      "enabled": true,
+      "run_holdout_validation": true,
+      "min_bin_size": 9,
+      "enriched_parquet_name": "fastpm_out_8_haloscope_tidal_enriched.parquet"
+    },
+    "validation": {
+      "enabled": true,
+      "n_grid": 256
+    }
+  }
+}
