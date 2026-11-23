@@ -142,16 +142,23 @@ def _resolve_saved_cic_density_paths(
             fastpm_density_info_path,
         )
 
-    tidal_stage = config.pipeline_stages.tidal_anisotropy
-    unit_work_dir = tidal_stage.unit.work_dir
-    if unit_work_dir is not None:
+    from density_field_properties.pipelines.config import (
+        PIPELINE_TARGET_FASTPM,
+        PIPELINE_TARGET_UNIT,
+        tidal_target_by_name,
+    )
+
+    unit_target = tidal_target_by_name(config, PIPELINE_TARGET_UNIT)
+    if unit_target is not None and unit_target.work_dir is not None:
+        unit_work_dir = unit_target.work_dir
         unit_dir = unit_work_dir if unit_work_dir.is_absolute() else repo_root / unit_work_dir
         unit_paths = try_resolve_work_dir_cic_density_paths(unit_dir)
         if unit_paths is not None:
             sim_density_path, sim_density_info_path = unit_paths
 
-    fastpm_work_dir = tidal_stage.fastpm.work_dir
-    if fastpm_work_dir is not None:
+    fastpm_target = tidal_target_by_name(config, PIPELINE_TARGET_FASTPM)
+    if fastpm_target is not None and fastpm_target.work_dir is not None:
+        fastpm_work_dir = fastpm_target.work_dir
         fastpm_dir = (
             fastpm_work_dir if fastpm_work_dir.is_absolute() else repo_root / fastpm_work_dir
         )
@@ -236,9 +243,15 @@ def write_tidal_assembly_bias_panel(
         saved_density_info_path=fastpm_density_info_path,
     )
     if delta_sim is None:
-        sim_delta_mode = "halo CIC"
+        raise RuntimeError(
+            "SIM matter overdensity is required for halo-by-halo b1; "
+            "configure saved CIC or DM particles for the UNIT catalog."
+        )
     if delta_fastpm is None:
-        fp_delta_mode = "halo CIC"
+        raise RuntimeError(
+            "FastPM matter overdensity is required for halo-by-halo b1; "
+            "configure saved CIC or DM particles for the FastPM catalog."
+        )
 
     halos_sim = halos_sim.copy()
     halos_fastpm_enriched = halos_fastpm_enriched.copy()
@@ -256,7 +269,6 @@ def write_tidal_assembly_bias_panel(
         fp_for_bias,
         fastpm_boxsize_mpc_h,
         n_grid=assembly_bias_n_grid,
-        mass_column=mass_column_fastpm,
         matter_delta_field=delta_fastpm,
     )
     del delta_fastpm

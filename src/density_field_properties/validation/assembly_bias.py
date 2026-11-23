@@ -4,17 +4,16 @@ from pathlib import Path
 from typing import Optional, Sequence, Tuple, Union
 
 import numpy as np
-from numpy.fft import irfftn, rfftn
 
 from density_field_properties.environment_properties.cic.cic_deposit import (
     delta_field_from_dm_particles,
     delta_field_from_saved_cic,
-    overdensity_from_cic_grid,
-    weighted_field_cic,
 )
-from density_field_properties.environment_properties.fourier.fourrier_transformations import kgrid
 from density_field_properties.read_data.particles import detect_dm_particle_format
 from density_field_properties.utils.stats import standard_error_mean
+from density_field_properties.validation.haloscope_halo_bias import (
+    haloscope_halo_by_halo_bias as paranjape_halo_by_halo_bias,
+)
 
 
 def solve_joint_percentile(
@@ -128,68 +127,6 @@ def joint_assembly_masks_from_reference(
     lower_mask = np.all(properties < lower_thresholds, axis=1)
     upper_mask = np.all(properties > upper_thresholds, axis=1)
     return lower_mask, upper_mask, percentile
-
-
-def halo_overdensity_field_cic(
-    positions_mpc_h: np.ndarray,
-    weights: np.ndarray,
-    boxsize_mpc_h: float,
-    n_grid: int,
-) -> np.ndarray:
-    """
-    Build a mass-weighted overdensity field with internal CIC deposition.
-
-    Parameters
-    ----------
-    positions_mpc_h : np.ndarray
-        Halo positions with shape ``(N, 3)`` in Mpc/h.
-    weights : np.ndarray
-        Non-negative weights per halo (typically ``M200b``).
-    boxsize_mpc_h : float
-        Periodic box side length in Mpc/h.
-    n_grid : int
-        Cells per dimension.
-
-    Returns
-    -------
-    np.ndarray
-        Overdensity ``delta`` on a cubic grid of shape ``(n_grid, n_grid, n_grid)``.
-    """
-    cic_grid = weighted_field_cic(
-        positions_mpc_h.astype(np.float64),
-        weights.astype(np.float64),
-        boxsize_mpc_h,
-        n_grid,
-    )
-    return overdensity_from_cic_grid(cic_grid)
-
-
-def halo_weighted_overdensity_field(
-    positions_mpc_h: np.ndarray,
-    weights: np.ndarray,
-    boxsize_mpc_h: float,
-    n_grid: int,
-) -> np.ndarray:
-    """
-    Build a mass-weighted overdensity field on a uniform grid (CIC).
-
-    Parameters
-    ----------
-    positions_mpc_h : np.ndarray
-        Halo positions with shape ``(N, 3)`` in Mpc/h.
-    weights : np.ndarray
-        Non-negative weights per halo (typically ``M200b``).
-    boxsize_mpc_h : float
-        Periodic box side length in Mpc/h.
-    n_grid : int
-        Cells per dimension.
-
-    Returns
-    -------
-    np.ndarray
-        Overdensity ``delta`` on a cubic grid of shape ``(n_grid, n_grid, n_grid)``.
-    """
-    return halo_overdensity_field_cic(positions_mpc_h, weights, boxsize_mpc_h, n_grid)
 
 
 def matter_overdensity_field_from_dm(
@@ -440,99 +377,6 @@ def load_fastpm_matter_overdensity(
     )
 
 
-def paranjape_halo_by_halo_bias(
-    positions_mpc_h: np.ndarray,
-    delta_field: np.ndarray,
-    boxsize_mpc_h: float,
-    k_max_h_mpc: float = 0.1,
-) -> np.ndarray:
-    """
-    Low-k halo-by-halo linear bias (Paranjape et al. 2018; Eq. 3 in HALOSCOPE paper).
-
-    Parameters
-    ----------
-    positions_mpc_h : np.ndarray
-        Halo positions with shape ``(N, 3)`` in Mpc/h.
-    delta_field : np.ndarray
-        Real-space matter overdensity on a cubic grid.
-    boxsize_mpc_h : float
-        Box side length in Mpc/h.
-    k_max_h_mpc : float, optional
-        Maximum wavenumber in ``h Mpc^-1`` (default 0.1).
-
-    Returns
-    -------
-    np.ndarray
-        Per-halo linear bias estimates, shape ``(N,)``.
-    """
-    n_grid = delta_field.shape[0]
-    if delta_field.shape != (n_grid, n_grid, n_grid):
-        raise ValueError("delta_field must be a cubic 3D array")
-
-    volume = boxsize_mpc_h**3
-    delta_k = rfftn(delta_field) / n_grid**3
-    kx, ky, kz = kgrid(n_grid, boxsize_mpc_h)
-    k_mag = np.sqrt(kx**2 + ky**2 + kz**2)
-    low_k = (k_mag > 0.0) & (k_mag <= k_max_h_mpc)
-    if not np.any(low_k):
-        raise ValueError("No Fourier modes below k_max; increase n_grid or k_max.")
-
-    power = np.abs(delta_k) ** 2 * volume
-    safe_power = np.maximum(power, 1e-30)
-    weighted_delta_k = np.zeros_like(delta_k, dtype=np.complex128)
-    weighted_delta_k[low_k] = delta_k[low_k] / safe_power[low_k]
-
-    bias_field = (
-        irfftn(weighted_delta_k, s=(n_grid, n_grid, n_grid), axes=(0, 1, 2)).real * n_grid**3
-    )
-    return _trilinear_sample_field(positions_mpc_h, bias_field, boxsize_mpc_h)
-
-
-def _trilinear_sample_field(
-    positions_mpc_h: np.ndarray,
-    field: np.ndarray,
-    boxsize_mpc_h: float,
-) -> np.ndarray:
-    """
-    Trilinear interpolation of a periodic 3D field at halo positions.
-
-    Parameters
-    ----------
-    positions_mpc_h : np.ndarray
-        Positions with shape ``(N, 3)``.
-    field : np.ndarray
-        Cubic grid values.
-    boxsize_mpc_h : float
-        Box side length.
-
-    Returns
-    -------
-    np.ndarray
-        Sampled values, shape ``(N,)``.
-    """
-    n_grid = field.shape[0]
-    cell = boxsize_mpc_h / n_grid
-    wrapped = np.mod(positions_mpc_h, boxsize_mpc_h)
-    grid_coord = wrapped / cell
-    i0 = np.floor(grid_coord).astype(int) % n_grid
-    frac = grid_coord - np.floor(grid_coord)
-
-    samples = np.zeros(len(positions_mpc_h), dtype=np.float64)
-    for di in (0, 1):
-        for dj in (0, 1):
-            for dk in (0, 1):
-                weight = (
-                    (frac[:, 0] if di else 1.0 - frac[:, 0])
-                    * (frac[:, 1] if dj else 1.0 - frac[:, 1])
-                    * (frac[:, 2] if dk else 1.0 - frac[:, 2])
-                )
-                index_x = (i0[:, 0] + di) % n_grid
-                index_y = (i0[:, 1] + dj) % n_grid
-                index_z = (i0[:, 2] + dk) % n_grid
-                samples += weight * field[index_x, index_y, index_z]
-    return samples
-
-
 def _geometric_mass_bin_center(log_mass_low: float, log_mass_high: float) -> float:
     """
     Geometric center of a log10-mass bin.
@@ -659,7 +503,6 @@ def attach_paranjape_bias(
     frame,
     boxsize_mpc_h: float,
     n_grid: int = 128,
-    mass_column: str = "M200b",
     k_max_h_mpc: float = 0.1,
     position_columns: Sequence[str] = ("x", "y", "z"),
     dm_particles_path: Optional[Union[str, Path]] = None,
@@ -668,11 +511,9 @@ def attach_paranjape_bias(
     matter_delta_field: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """
-    Compute per-halo linear bias with the Paranjape estimator.
+    Compute per-halo linear bias with the HALOSCOPE halo-by-halo estimator.
 
-    Uses a matter ``delta`` field from DM particles when ``dm_particles_path`` or
-    ``matter_delta_field`` is provided; otherwise falls back to halo CIC with ``mass_column``
-    weights.
+    Requires a matter ``delta`` field (precomputed grid or DM snapshot path).
 
     Parameters
     ----------
@@ -681,11 +522,9 @@ def attach_paranjape_bias(
     boxsize_mpc_h : float
         Periodic box side length in Mpc/h.
     n_grid : int, optional
-        Grid resolution for the overdensity field.
-    mass_column : str, optional
-        Mass column used as CIC weights in the halo-only fallback.
+        Grid resolution when building ``delta`` from DM particles.
     k_max_h_mpc : float, optional
-        Maximum wavenumber for the Paranjape estimator.
+        Maximum wavenumber in h Mpc^-1.
     position_columns : Sequence[str], optional
         Column names for halo positions.
     dm_particles_path : Optional[str or Path], optional
@@ -716,8 +555,10 @@ def attach_paranjape_bias(
             batch_size=dm_batch_size,
         )
     else:
-        weights = frame[mass_column].to_numpy(dtype=np.float64)
-        delta_field = halo_overdensity_field_cic(positions, weights, boxsize_mpc_h, n_grid)
+        raise ValueError(
+            "Halo-by-halo bias requires matter_delta_field or dm_particles_path; "
+            "halo CIC is not a valid matter field for this estimator."
+        )
     return paranjape_halo_by_halo_bias(
         positions,
         delta_field,

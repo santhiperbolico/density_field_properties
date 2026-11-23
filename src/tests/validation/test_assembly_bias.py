@@ -12,13 +12,15 @@ try:
 except Exception:
     pytest.skip("bigfile not available", allow_module_level=True)
 
+import pandas as pd
+
 from density_field_properties.environment_properties.cic.cic_deposit import (
     DensityFieldInfo,
     save_density_field_cic,
 )
 from density_field_properties.validation.assembly_bias import (
     assembly_bias_curves_for_catalog,
-    halo_overdensity_field_cic,
+    attach_paranjape_bias,
     joint_assembly_masks,
     joint_assembly_masks_from_reference,
     load_matter_overdensity,
@@ -85,13 +87,11 @@ def test_load_matter_overdensity_saved_cic():
         assert delta.shape == (3, 3, 3)
 
 
-def test_halo_overdensity_field_cic_uniform_weights():
-    """CIC halo field should have mean overdensity near zero on a small periodic grid."""
-    positions = np.array([[0.5, 0.5, 0.5], [1.5, 1.5, 1.5]], dtype=np.float64)
-    weights = np.array([1.0, 1.0], dtype=np.float64)
-    delta = halo_overdensity_field_cic(positions, weights, boxsize_mpc_h=3.0, n_grid=3)
-    assert delta.shape == (3, 3, 3)
-    assert np.isclose(delta.mean(), 0.0, atol=1e-12)
+def test_attach_paranjape_bias_requires_matter_field():
+    """Bias attachment must not fall back to a halo-only density field."""
+    frame = pd.DataFrame({"x": [1.0], "y": [2.0], "z": [3.0], "M200b": [1.0e12]})
+    with pytest.raises(ValueError, match="matter_delta_field"):
+        attach_paranjape_bias(frame, boxsize_mpc_h=100.0)
 
 
 def test_assembly_bias_curves_returns_finite_bins():
