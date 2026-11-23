@@ -9,7 +9,7 @@ from density_field_properties.preprocessing.halo_matching import (
     hr_masses_for_matched_lr,
     match_hr_to_lr_one_to_one,
 )
-from density_field_properties.preprocessing.mass_calibration_config import (
+from density_field_properties.preprocessing.mass_correction.config import (
     MatchingHyperparameters,
 )
 

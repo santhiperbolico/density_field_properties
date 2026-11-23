@@ -1,4 +1,4 @@
-"""ML mass calibration labels, regressor fit, and inference for ``matching_ml``."""
+"""ML mass correction labels, regressor fit, and inference for ``matching_ml``."""
 
 import hashlib
 import json
@@ -15,9 +15,9 @@ from density_field_properties.preprocessing.halo_matching import (
     UNMATCHED_INDEX,
     match_hr_to_lr_one_to_one,
 )
-from density_field_properties.preprocessing.mass_calibration_config import (
-    MASS_CALIBRATION_METHOD_MATCHING_ML,
-    MassCalibrationConfig,
+from density_field_properties.preprocessing.mass_correction.config import (
+    MASS_CORRECTION_METHOD_MATCHING_ML,
+    MassCorrectionSettings,
     MatchingHyperparameters,
     RegressorConfig,
     TrainSubboxConfig,
@@ -236,14 +236,14 @@ def create_regressor(regressor_config: RegressorConfig) -> Any:
     raise ValueError(f"Unknown matching_ml regressor type: {regressor_type}")
 
 
-def _config_fingerprint(config: MassCalibrationConfig) -> str:
+def _config_fingerprint(config: MassCorrectionSettings) -> str:
     """
-    Hash mass calibration settings for joblib bundle metadata.
+    Hash mass correction settings for joblib bundle metadata.
 
     Parameters
     ----------
-    config : MassCalibrationConfig
-        Full mass calibration configuration.
+    config : MassCorrectionSettings
+        Full mass correction configuration.
 
     Returns
     -------
@@ -271,7 +271,7 @@ def save_matching_ml_model(
     model_path: Path,
     regressor: Any,
     ml_features: tuple[str, ...],
-    config: MassCalibrationConfig,
+    config: MassCorrectionSettings,
 ) -> None:
     """
     Persist a fitted regressor and feature metadata with joblib.
@@ -284,13 +284,13 @@ def save_matching_ml_model(
         Fitted multi-target regressor.
     ml_features : tuple[str, ...]
         Feature column order used at fit time.
-    config : MassCalibrationConfig
-        Mass calibration settings for provenance.
+    config : MassCorrectionSettings
+        Mass correction settings for provenance.
     """
     model_path.parent.mkdir(parents=True, exist_ok=True)
     bundle = {
         "version": JOBLIB_MODEL_VERSION,
-        "method": MASS_CALIBRATION_METHOD_MATCHING_ML,
+        "method": MASS_CORRECTION_METHOD_MATCHING_ML,
         "ml_features": tuple(ml_features),
         "config_fingerprint": _config_fingerprint(config),
         "regressor": regressor,
@@ -407,7 +407,7 @@ def _apply_keep_threshold(
 def apply_matching_ml(
     lr_catalog: pd.DataFrame,
     hr_catalog: pd.DataFrame,
-    config: MassCalibrationConfig,
+    config: MassCorrectionSettings,
     box_size_mpc_h: float,
 ) -> pd.DataFrame:
     """
@@ -419,8 +419,8 @@ def apply_matching_ml(
         Low-resolution target catalog with INPUT features attached.
     hr_catalog : pd.DataFrame
         High-resolution reference catalog.
-    config : MassCalibrationConfig
-        Mass calibration settings including ``matching_ml``.
+    config : MassCorrectionSettings
+        Mass correction settings including ``matching_ml``.
     box_size_mpc_h : float
         Periodic box side in Mpc/h.
 
@@ -487,11 +487,11 @@ def apply_matching_ml(
     calibrated[infer_mask] = 10.0 ** log10_m_hr[infer_mask]
     calibrated = _apply_keep_threshold(calibrated, p_keep, ml_settings.keep_threshold)
 
-    lr_catalog[config.calibrated_column] = calibrated
-    lr_catalog["mass_calib_p_keep"] = p_keep
-    lr_catalog["mass_calib_method"] = MASS_CALIBRATION_METHOD_MATCHING_ML
+    lr_catalog[config.corrected_column] = calibrated
+    lr_catalog["mass_corr_p_keep"] = p_keep
+    lr_catalog["mass_corr_method"] = MASS_CORRECTION_METHOD_MATCHING_ML
 
     if not np.any(np.isfinite(calibrated)):
-        raise ValueError("All LR calibrated masses are NaN after matching_ml.")
+        raise ValueError("All LR corrected masses are NaN after matching_ml.")
 
     return lr_catalog

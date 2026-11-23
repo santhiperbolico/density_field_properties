@@ -8,8 +8,8 @@ from density_field_properties.preprocessing.context import (
     SimulationRunContext,
 )
 from density_field_properties.preprocessing.feature_table import build_feature_tables
-from density_field_properties.preprocessing.mass_calibration_config import (
-    default_mass_calibration_config,
+from density_field_properties.preprocessing.mass_correction.config import (
+    default_mass_correction_settings,
 )
 from density_field_properties.preprocessing.mass_filter_config import HaloMassFilterConfig
 
@@ -45,7 +45,7 @@ def _env_context(calibrate_mass: bool) -> PreprocessingContext:
     return PreprocessingContext(
         sim=SimulationRunContext(boxsize_mpc_h=1000.0, env_radius_mpc_h=5.0),
         fastpm=SimulationRunContext(boxsize_mpc_h=1000.0, env_radius_mpc_h=5.0),
-        mass_calibration=default_mass_calibration_config(enabled=calibrate_mass),
+        mass_correction=default_mass_correction_settings(enabled=calibrate_mass),
     )
 
 
@@ -71,7 +71,7 @@ def test_build_feature_tables_applies_mass_filter():
     context = PreprocessingContext(
         sim=SimulationRunContext(boxsize_mpc_h=1000.0, env_radius_mpc_h=5.0),
         fastpm=SimulationRunContext(boxsize_mpc_h=1000.0, env_radius_mpc_h=5.0),
-        mass_calibration=default_mass_calibration_config(enabled=False),
+        mass_correction=default_mass_correction_settings(enabled=False),
         mass_filter=HaloMassFilterConfig(min_mass_msun_h=1.0e12, max_mass_msun_h=1.6e12),
     )
     hr, lr, _ = build_feature_tables(

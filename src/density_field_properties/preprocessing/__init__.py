@@ -1,13 +1,11 @@
 """Preprocessing layer for Haloscope HR/LR feature tables."""
 
-from density_field_properties.preprocessing.mass_calibration import (
+from density_field_properties.preprocessing.mass_correction import (
+    MassCorrectionSettings,
     abundance_match_mass,
-    apply_mass_calibration,
-    calibrate_lr_mass,
-)
-from density_field_properties.preprocessing.mass_calibration_config import (
-    MassCalibrationConfig,
-    default_mass_calibration_config,
+    apply_mass_correction,
+    correct_lr_mass,
+    default_mass_correction_settings,
 )
 from density_field_properties.preprocessing.schemas import (
     SchemaValidationError,
@@ -17,11 +15,11 @@ from density_field_properties.preprocessing.schemas import (
 
 __all__ = [
     "SchemaValidationError",
-    "MassCalibrationConfig",
+    "MassCorrectionSettings",
     "abundance_match_mass",
-    "apply_mass_calibration",
-    "calibrate_lr_mass",
-    "default_mass_calibration_config",
+    "apply_mass_correction",
+    "correct_lr_mass",
+    "default_mass_correction_settings",
     "validate_hr_training_table",
     "validate_lr_target_table",
 ]

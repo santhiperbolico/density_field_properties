@@ -9,15 +9,15 @@ from density_field_properties.preprocessing.context import (
     SimulationRunContext,
 )
 from density_field_properties.preprocessing.feature_table import build_feature_tables
-from density_field_properties.preprocessing.mass_calibration import apply_mass_calibration
-from density_field_properties.preprocessing.mass_calibration_config import (
-    MASS_CALIBRATION_METHOD_MATCHING_1TO1,
-    MassCalibrationConfig,
+from density_field_properties.preprocessing.mass_correction import apply_mass_correction
+from density_field_properties.preprocessing.mass_correction.config import (
+    MASS_CORRECTION_METHOD_MATCHING_1TO1,
+    MassCorrectionSettings,
     MatchingHyperparameters,
 )
 
 
-def _matching_config(**overrides) -> MassCalibrationConfig:
+def _matching_config(**overrides) -> MassCorrectionSettings:
     """
     Build a ``matching_1to1`` mass calibration config for tests.
 
@@ -28,13 +28,13 @@ def _matching_config(**overrides) -> MassCalibrationConfig:
 
     Returns
     -------
-    MassCalibrationConfig
+    MassCorrectionSettings
         Enabled matching calibration settings.
     """
     matching = MatchingHyperparameters(**overrides) if overrides else MatchingHyperparameters()
-    return MassCalibrationConfig(
+    return MassCorrectionSettings(
         enabled=True,
-        method=MASS_CALIBRATION_METHOD_MATCHING_1TO1,
+        method=MASS_CORRECTION_METHOD_MATCHING_1TO1,
         matching=matching,
     )
 
@@ -61,14 +61,14 @@ def test_matching_1to1_writes_hr_mass_and_trace_columns():
         }
     )
     config = _matching_config(k_neighbours=3, r_match_mpc_h=5.0)
-    calibrated_lr, mass_column = apply_mass_calibration(lr, hr, config, box_size_mpc_h=100.0)
+    calibrated_lr, mass_column = apply_mass_correction(lr, hr, config, box_size_mpc_h=100.0)
 
     assert mass_column == "M200b_cal"
     assert calibrated_lr["M200b_cal"].iloc[0] == pytest.approx(1.25e12)
     assert calibrated_lr["M200b"].iloc[0] == pytest.approx(9.0e11)
-    assert bool(calibrated_lr["mass_calib_matched"].iloc[0])
-    assert calibrated_lr["mass_calib_method"].iloc[0] == MASS_CALIBRATION_METHOD_MATCHING_1TO1
-    assert calibrated_lr["mass_calib_hr_id"].iloc[0] == pytest.approx(101.0)
+    assert bool(calibrated_lr["mass_corr_matched"].iloc[0])
+    assert calibrated_lr["mass_corr_method"].iloc[0] == MASS_CORRECTION_METHOD_MATCHING_1TO1
+    assert calibrated_lr["mass_corr_hr_id"].iloc[0] == pytest.approx(101.0)
 
 
 def test_matching_1to1_unmatched_lr_gets_nan_calibrated_mass():
@@ -85,11 +85,11 @@ def test_matching_1to1_unmatched_lr_gets_nan_calibrated_mass():
         }
     )
     config = _matching_config(r_match_mpc_h=2.0)
-    calibrated_lr, _ = apply_mass_calibration(lr.copy(), hr, config, box_size_mpc_h=100.0)
+    calibrated_lr, _ = apply_mass_correction(lr.copy(), hr, config, box_size_mpc_h=100.0)
 
     assert np.isfinite(calibrated_lr["M200b_cal"].iloc[0])
     assert np.isnan(calibrated_lr["M200b_cal"].iloc[1])
-    assert calibrated_lr["mass_calib_matched"].tolist() == [True, False]
+    assert calibrated_lr["mass_corr_matched"].tolist() == [True, False]
 
 
 def test_matching_1to1_raises_when_all_lr_masses_are_nan():
@@ -99,8 +99,8 @@ def test_matching_1to1_raises_when_all_lr_masses_are_nan():
     hr = pd.DataFrame({"x": [0.0], "y": [0.0], "z": [0.0], "M200b": [1.0e12]})
     lr = pd.DataFrame({"x": [40.0], "y": [0.0], "z": [0.0], "M200b": [9.0e11]})
     config = _matching_config(r_match_mpc_h=1.0)
-    with pytest.raises(ValueError, match="All LR calibrated masses are NaN"):
-        apply_mass_calibration(lr, hr, config, box_size_mpc_h=100.0)
+    with pytest.raises(ValueError, match="All LR corrected masses are NaN"):
+        apply_mass_correction(lr, hr, config, box_size_mpc_h=100.0)
 
 
 def test_build_feature_tables_with_matching_1to1():
@@ -131,7 +131,7 @@ def test_build_feature_tables_with_matching_1to1():
     context = PreprocessingContext(
         sim=SimulationRunContext(boxsize_mpc_h=1000.0, env_radius_mpc_h=5.0),
         fastpm=SimulationRunContext(boxsize_mpc_h=1000.0, env_radius_mpc_h=5.0),
-        mass_calibration=_matching_config(k_neighbours=5, r_match_mpc_h=10.0),
+        mass_correction=_matching_config(k_neighbours=5, r_match_mpc_h=10.0),
     )
     hr_table, lr_table, mass_column = build_feature_tables(hr, lr, ("env",), context)
 

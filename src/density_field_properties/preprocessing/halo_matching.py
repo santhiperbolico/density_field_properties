@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import scipy.spatial
 
-from density_field_properties.preprocessing.mass_calibration_config import (
+from density_field_properties.preprocessing.mass_correction.config import (
     MatchingHyperparameters,
 )
 

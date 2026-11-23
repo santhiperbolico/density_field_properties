@@ -1,17 +1,17 @@
-"""Mass calibration settings for Haloscope LR preprocessing."""
+"""Mass correction settings for Haloscope LR preprocessing."""
 
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Optional
 
-MASS_CALIBRATION_METHOD_ABUNDANCE = "abundance_matching"
-MASS_CALIBRATION_METHOD_MATCHING_1TO1 = "matching_1to1"
-MASS_CALIBRATION_METHOD_MATCHING_ML = "matching_ml"
+MASS_CORRECTION_METHOD_ABUNDANCE = "abundance_matching"
+MASS_CORRECTION_METHOD_MATCHING_1TO1 = "matching_1to1"
+MASS_CORRECTION_METHOD_MATCHING_ML = "matching_ml"
 
-MASS_CALIBRATION_METHODS = (
-    MASS_CALIBRATION_METHOD_ABUNDANCE,
-    MASS_CALIBRATION_METHOD_MATCHING_1TO1,
-    MASS_CALIBRATION_METHOD_MATCHING_ML,
+MASS_CORRECTION_METHODS = (
+    MASS_CORRECTION_METHOD_ABUNDANCE,
+    MASS_CORRECTION_METHOD_MATCHING_1TO1,
+    MASS_CORRECTION_METHOD_MATCHING_ML,
 )
 
 DEFAULT_MATCHING_K_NEIGHBOURS = 10
@@ -30,6 +30,10 @@ DEFAULT_REGRESSOR_PARAMS = {
     "max_depth": 64,
     "random_state": 42,
 }
+
+DEFAULT_HMF_LR_FLOOR_MIN_COUNT = 100
+DEFAULT_HMF_ELBOW_MIN_COUNT = 48
+DEFAULT_HMF_ELBOW_BIN_COUNT = 64
 
 
 @dataclass(frozen=True)
@@ -110,7 +114,7 @@ class RegressorConfig:
 @dataclass(frozen=True)
 class MatchingMlConfig:
     """
-    Settings for ML mass calibration after sub-box matching labels.
+    Settings for ML mass correction after sub-box matching labels.
 
     Parameters
     ----------
@@ -140,49 +144,54 @@ class MatchingMlConfig:
 
 
 @dataclass(frozen=True)
-class MassCalibrationConfig:
+class MassCorrectionSettings:
     """
-    LR mass calibration method and parameters for Haloscope preprocessing.
+    LR mass correction method and parameters for Haloscope preprocessing.
 
     Parameters
     ----------
     enabled : bool
         When False, LR bin assignment uses raw ``lr_mass_column``.
     method : str
-        Calibration method key from ``MASS_CALIBRATION_METHODS``.
-    calibrated_column : str
+        Calibration method key from ``MASS_CORRECTION_METHODS``.
+    corrected_column : str
         Output column written on the LR table when enabled.
     matching : MatchingHyperparameters
         Shared matching hyperparameters for ``matching_1to1`` and ``matching_ml``.
     matching_ml : MatchingMlConfig
         ML-specific settings for ``matching_ml``.
+    hmf_lr_floor_min_count: int
+        Minimum number of halos in a bin for it to qualify as the knee peak.
     """
 
     enabled: bool = True
-    method: str = MASS_CALIBRATION_METHOD_ABUNDANCE
-    calibrated_column: str = "M200b_cal"
+    method: str = MASS_CORRECTION_METHOD_ABUNDANCE
+    corrected_column: str = "M200b_cal"
     matching: MatchingHyperparameters = field(default_factory=MatchingHyperparameters)
     matching_ml: MatchingMlConfig = field(default_factory=MatchingMlConfig)
+    hmf_lr_floor_min_count: int = DEFAULT_HMF_LR_FLOOR_MIN_COUNT
+    auto_lr_correction_min_mass_from_hmf: bool = False
+    lr_correction_min_mass_msun_h: Optional[float] = None
 
 
-def default_mass_calibration_config(enabled: Optional[bool] = None) -> MassCalibrationConfig:
+def default_mass_correction_settings(enabled: Optional[bool] = None) -> MassCorrectionSettings:
     """
-    Build default mass calibration settings (abundance matching).
+    Build default mass correction settings (abundance matching).
 
     Parameters
     ----------
     enabled : Optional[bool]
-        Whether LR mass calibration runs before Haloscope bin assignment. When
-        ``None``, uses ``CALIBRATE_MASS`` from pipeline run defaults.
+        Whether LR mass correction runs before Haloscope bin assignment. When
+        ``None``, uses ``CORRECT_MASS`` from pipeline run defaults.
     Returns
     -------
-    MassCalibrationConfig
-        Fiducial configuration aligned with legacy ``CALIBRATE_MASS``.
+    MassCorrectionSettings
+        Fiducial configuration aligned with ``CORRECT_MASS``.
     """
-    from density_field_properties.pipelines.run_defaults import CALIBRATE_MASS
+    from density_field_properties.pipelines.run_defaults import CORRECT_MASS
 
-    resolved_enabled = CALIBRATE_MASS if enabled is None else enabled
-    return MassCalibrationConfig(enabled=resolved_enabled)
+    resolved_enabled = CORRECT_MASS if enabled is None else enabled
+    return MassCorrectionSettings(enabled=resolved_enabled)
 
 
 def _parse_train_subbox(payload: Mapping[str, Any]) -> TrainSubboxConfig:
@@ -231,7 +240,7 @@ def _parse_regressor(payload: Mapping[str, Any]) -> RegressorConfig:
     elif isinstance(raw_params, dict):
         params = dict(raw_params)
     else:
-        raise ValueError("mass_calibration.matching_ml.regressor.params must be a JSON object.")
+        raise ValueError("mass_correction.matching_ml.regressor.params must be a JSON object.")
     return RegressorConfig(regressor_type=regressor_type, params=params)
 
 
@@ -301,13 +310,13 @@ def _parse_matching(payload: Mapping[str, Any]) -> MatchingHyperparameters:
     )
 
 
-def parse_mass_calibration_config(
+def parse_legacy_mass_correction_json(
     payload: Mapping[str, Any],
     haloscope_payload: Mapping[str, Any],
     legacy_calibrate_mass: Any = None,
-) -> MassCalibrationConfig:
+) -> MassCorrectionSettings:
     """
-    Parse mass calibration settings from Haloscope run JSON.
+    Parse mass correction settings from Haloscope run JSON.
 
     Parameters
     ----------
@@ -319,19 +328,19 @@ def parse_mass_calibration_config(
         Top-level ``calibrate_mass`` when present.
     Returns
     -------
-    MassCalibrationConfig
+    MassCorrectionSettings
         Parsed configuration with legacy fallbacks applied.
 
     Raises
     ------
     ValueError
-        If ``method`` is not a supported calibration key.
+        If ``method`` is not a supported correction key.
     """
-    mass_block = payload.get("mass_calibration")
+    mass_block = payload.get("mass_correction") or payload.get("mass_calibration")
     if mass_block is None:
         mass_block = {}
     if not isinstance(mass_block, dict):
-        raise ValueError("mass_calibration must be a JSON object when provided.")
+        raise ValueError("mass_correction must be a JSON object when provided.")
 
     enabled = mass_block.get("enabled")
     if enabled is None:
@@ -349,34 +358,36 @@ def parse_mass_calibration_config(
     if method_raw is None:
         legacy_method = haloscope_payload.get("mass_calibration_method")
         method = (
-            str(legacy_method) if legacy_method is not None else MASS_CALIBRATION_METHOD_ABUNDANCE
+            str(legacy_method) if legacy_method is not None else MASS_CORRECTION_METHOD_ABUNDANCE
         )
     else:
         method = str(method_raw)
 
-    if method not in MASS_CALIBRATION_METHODS:
+    if method not in MASS_CORRECTION_METHODS:
         raise ValueError(
-            f"Unknown mass calibration method '{method}'; "
-            f"expected one of {', '.join(MASS_CALIBRATION_METHODS)}."
+            f"Unknown mass correction method '{method}'; "
+            f"expected one of {', '.join(MASS_CORRECTION_METHODS)}."
         )
 
-    calibrated_column = str(mass_block.get("calibrated_column", "M200b_cal"))
+    corrected_column = str(
+        mass_block.get("corrected_column", mass_block.get("calibrated_column", "M200b_cal"))
+    )
     matching = _parse_matching(mass_block.get("matching", {}))
     matching_ml = _parse_matching_ml(mass_block.get("matching_ml", {}))
 
-    return MassCalibrationConfig(
+    return MassCorrectionSettings(
         enabled=enabled,
         method=method,
-        calibrated_column=calibrated_column,
+        corrected_column=corrected_column,
         matching=matching,
         matching_ml=matching_ml,
     )
 
 
-def mass_calibration_from_legacy_bool(
+def mass_correction_from_legacy_bool(
     calibrate_mass: bool,
-    calibrated_column: str = "M200b_cal",
-) -> MassCalibrationConfig:
+    corrected_column: str = "M200b_cal",
+) -> MassCorrectionSettings:
     """
     Build a minimal config from a legacy on/off flag.
 
@@ -384,16 +395,16 @@ def mass_calibration_from_legacy_bool(
     ----------
     calibrate_mass : bool
         Legacy calibration toggle.
-    calibrated_column : str, optional
+    corrected_column : str, optional
         Output column name when calibration is enabled.
 
     Returns
     -------
-    MassCalibrationConfig
+    MassCorrectionSettings
         Abundance-matching configuration.
     """
-    return MassCalibrationConfig(
+    return MassCorrectionSettings(
         enabled=calibrate_mass,
-        method=MASS_CALIBRATION_METHOD_ABUNDANCE,
-        calibrated_column=calibrated_column,
+        method=MASS_CORRECTION_METHOD_ABUNDANCE,
+        corrected_column=corrected_column,
     )

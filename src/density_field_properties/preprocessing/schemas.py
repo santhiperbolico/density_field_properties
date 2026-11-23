@@ -64,8 +64,8 @@ def validate_hr_training_table(
 def validate_lr_target_table(
     frame: pd.DataFrame,
     input_features: Sequence[str],
-    calibrate_mass: bool = False,
-    calibrated_mass_column: str = "M200b_cal",
+    apply_mass_correction: bool = False,
+    corrected_mass_column: str = "M200b_cal",
 ) -> None:
     """
     Validate the LR target table before Haloscope predict.
@@ -76,10 +76,10 @@ def validate_lr_target_table(
         Low-resolution target catalog.
     input_features : Sequence[str]
         Haloscope input feature column names.
-    calibrate_mass : bool, optional
-        If True, require ``calibrated_mass_column``.
-    calibrated_mass_column : str, optional
-        Calibrated mass column name on LR.
+    apply_mass_correction : bool, optional
+        If True, require ``corrected_mass_column``.
+    corrected_mass_column : str, optional
+        Corrected mass column name on LR.
 
     Raises
     ------
@@ -87,8 +87,8 @@ def validate_lr_target_table(
         If required columns are missing or the table is empty.
     """
     required = list(LR_BASE_COLUMNS) + list(input_features)
-    if calibrate_mass:
-        required.append(calibrated_mass_column)
+    if apply_mass_correction:
+        required.append(corrected_mass_column)
     missing = _missing_columns(frame, required)
     if missing:
         raise SchemaValidationError(

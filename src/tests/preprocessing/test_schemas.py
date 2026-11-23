@@ -54,7 +54,7 @@ def test_preprocess_env_only_without_tidal_artifacts():
     Env-only mode validates HR/LR tables without tidal input columns.
     """
     validate_hr_training_table(_hr_frame(), ("env",))
-    validate_lr_target_table(_lr_frame(), ("env",), calibrate_mass=False)
+    validate_lr_target_table(_lr_frame(), ("env",), apply_mass_correction=False)
 
 
 def test_preprocess_tidal_requires_input_columns():
@@ -71,7 +71,7 @@ def test_preprocess_tidal_requires_input_columns():
     validate_lr_target_table(
         lr,
         ("t_over_u", "tidal_anisotropy"),
-        calibrate_mass=True,
+        apply_mass_correction=True,
     )
 
     lr_missing = lr.drop(columns=["tidal_anisotropy"])
@@ -79,5 +79,5 @@ def test_preprocess_tidal_requires_input_columns():
         validate_lr_target_table(
             lr_missing,
             ("t_over_u", "tidal_anisotropy"),
-            calibrate_mass=True,
+            apply_mass_correction=True,
         )

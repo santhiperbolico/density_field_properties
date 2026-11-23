@@ -7,16 +7,16 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from density_field_properties.preprocessing.mass_calibration import apply_mass_calibration
-from density_field_properties.preprocessing.mass_calibration_config import (
-    MASS_CALIBRATION_METHOD_MATCHING_ML,
-    MassCalibrationConfig,
+from density_field_properties.preprocessing.mass_correction import apply_mass_correction
+from density_field_properties.preprocessing.mass_correction.config import (
+    MASS_CORRECTION_METHOD_MATCHING_ML,
+    MassCorrectionSettings,
     MatchingHyperparameters,
     MatchingMlConfig,
     RegressorConfig,
     TrainSubboxConfig,
 )
-from density_field_properties.preprocessing.mass_calibration_ml import (
+from density_field_properties.preprocessing.mass_correction.ml_correction import (
     REGRESSOR_SKLEARN_RANDOM_FOREST,
     apply_matching_ml,
     build_ml_feature_matrix,
@@ -30,7 +30,7 @@ from density_field_properties.preprocessing.schemas import SchemaValidationError
 def _ml_config(
     train_subbox: TrainSubboxConfig,
     ml_features: tuple[str, ...] = ("log10_M200b", "env"),
-) -> MassCalibrationConfig:
+) -> MassCorrectionSettings:
     """
     Build a minimal ``matching_ml`` configuration for unit tests.
 
@@ -43,12 +43,12 @@ def _ml_config(
 
     Returns
     -------
-    MassCalibrationConfig
+    MassCorrectionSettings
         Enabled ML calibration settings.
     """
-    return MassCalibrationConfig(
+    return MassCorrectionSettings(
         enabled=True,
-        method=MASS_CALIBRATION_METHOD_MATCHING_ML,
+        method=MASS_CORRECTION_METHOD_MATCHING_ML,
         matching=MatchingHyperparameters(
             k_neighbours=5,
             r_match_mpc_h=5.0,
@@ -145,8 +145,8 @@ def test_apply_matching_ml_writes_calibrated_mass_and_p_keep(tmp_path: Path):
     calibrated_lr = apply_matching_ml(lr.copy(), hr, config, box_size_mpc_h=100.0)
 
     assert np.isfinite(calibrated_lr["M200b_cal"]).any()
-    assert "mass_calib_p_keep" in calibrated_lr.columns
-    assert calibrated_lr["mass_calib_method"].iloc[0] == MASS_CALIBRATION_METHOD_MATCHING_ML
+    assert "mass_corr_p_keep" in calibrated_lr.columns
+    assert calibrated_lr["mass_corr_method"].iloc[0] == MASS_CORRECTION_METHOD_MATCHING_ML
 
 
 def test_saved_model_reproduces_predictions(tmp_path: Path):
@@ -155,7 +155,7 @@ def test_saved_model_reproduces_predictions(tmp_path: Path):
     """
     hr, lr = _paired_catalogs()
     subbox = TrainSubboxConfig(x_max_mpc_h=100.0, y_max_mpc_h=100.0, z_max_mpc_h=100.0)
-    model_path = tmp_path / "mass_calib_ml.joblib"
+    model_path = tmp_path / "mass_corr_ml.joblib"
     fit_config = _ml_config(train_subbox=subbox)
     fit_config = replace(
         fit_config,
@@ -182,15 +182,13 @@ def test_saved_model_reproduces_predictions(tmp_path: Path):
     assert regressor is not None
 
 
-def test_apply_mass_calibration_dispatcher_matching_ml():
+def test_apply_mass_correction_dispatcher_matching_ml():
     """
-    ``apply_mass_calibration`` should route to the ML backend.
+    ``apply_mass_correction`` should route to the ML backend.
     """
     hr, lr = _paired_catalogs()
     subbox = TrainSubboxConfig(x_max_mpc_h=100.0, y_max_mpc_h=100.0, z_max_mpc_h=100.0)
     config = _ml_config(train_subbox=subbox)
-    calibrated_lr, mass_column = apply_mass_calibration(
-        lr.copy(), hr, config, box_size_mpc_h=100.0
-    )
+    calibrated_lr, mass_column = apply_mass_correction(lr.copy(), hr, config, box_size_mpc_h=100.0)
     assert mass_column == "M200b_cal"
     assert np.isfinite(calibrated_lr["M200b_cal"]).any()
