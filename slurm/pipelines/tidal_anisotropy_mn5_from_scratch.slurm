@@ -18,7 +18,7 @@ export PYTHONPATH=/home/arnes/santiago_arranz/density_field_properties/src
 source /home/arnes/miniconda3/etc/profile.d/conda.sh
 conda activate density_field_properties
 
-CONFIG="config/tidal_anisotropy_mn5.json"
+CONFIG="config/older/tidal_anisotropy_mn5.json"
 OUTPUT_PATH="output/tidal_mn5"
 UNIT_WORK="${OUTPUT_PATH}/unit"
 

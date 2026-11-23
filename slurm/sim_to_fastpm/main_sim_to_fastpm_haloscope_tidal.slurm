@@ -26,6 +26,6 @@ mkdir -p "${OUTPUT_PATH}"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starting SIM (UNIT) to FastPM Haloscope (tidal inputs, full catalogs + assembly bias)"
 
 srun python pipelines/run_haloscope_enrichment.py \
-    --config config/haloscope_run_tidal_production_assembly_bias.json
+    --config config/older/haloscope_run_tidal_production_assembly_bias.json
 
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Finished tidal Haloscope enrichment and assembly-bias plot"

@@ -196,7 +196,7 @@ def test_taurus_benchmark_config_runs_matching_ml_for_fof():
     """
     Taurus benchmark JSON runs ``matching_ml`` for FoF (full box, no coord offset).
     """
-    config_path = REPO_ROOT / "config/mass_calibration_four_catalogs_taurus.json"
+    config_path = REPO_ROOT / "config/older/mass_calibration_four_catalogs_taurus.json"
     if not config_path.is_file():
         pytest.skip("Taurus benchmark config not present in this checkout.")
     payload = json.loads(config_path.read_text(encoding="utf-8"))

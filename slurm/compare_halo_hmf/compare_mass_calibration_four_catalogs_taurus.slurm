@@ -20,10 +20,10 @@ conda activate density_field_properties
 mkdir -p output/mass_calibration_four_catalogs_taurus
 
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Mass calibration benchmark (MN5 full box, four catalogs)"
-echo "[INFO] Config: config/mass_calibration_four_catalogs_taurus.json"
-echo "[INFO] Catalog paths aligned with config/hmf_four_catalogs_taurus.json"
+echo "[INFO] Config: config/older/mass_calibration_four_catalogs_taurus.json"
+echo "[INFO] Catalog paths aligned with config/older/hmf_four_catalogs_taurus.json"
 
 srun python scripts/compare_mass_calibration_catalogs.py \
-    --config config/mass_calibration_four_catalogs_taurus.json
+    --config config/older/mass_calibration_four_catalogs_taurus.json
 
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Done. See output/mass_calibration_four_catalogs_taurus/"

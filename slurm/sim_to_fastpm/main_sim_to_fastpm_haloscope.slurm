@@ -26,6 +26,6 @@ mkdir -p "${OUTPUT_PATH}"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starting SIM (UNIT) to FastPM Haloscope (full catalogs)"
 
 srun python pipelines/run_haloscope_enrichment.py \
-    --config config/haloscope_run_env_production.json
+    --config config/older/haloscope_run_env_production.json
 
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Finished Haloscope enrichment"

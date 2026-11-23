@@ -9,7 +9,7 @@ Plantillas `sbatch` para el cluster. Todas asumen `cd` al directorio del repo y 
 | `density_field/` | Construcción del campo de densidad CIC (`main_density_field_cic.py`) |
 | `tidal_tensor/` | Tensor de marea y descriptores tidales: `main_tidal_tensor_field_fastpm.slurm`, `main_tidal_tensor_field_unit.slurm` |
 | `sim_to_fastpm/` | Haloscope SIM→FastPM: `main_sim_to_fastpm_haloscope.slurm`, `main_sim_to_fastpm_haloscope_tidal.slurm`, `main_sim_to_fastpm_haloscope_tidal_smoke.slurm` |
-| `pipelines/` | CIC + tensor de marea (`tidal_anisotropy_mn5_from_scratch.slurm`); Haloscope MN5 con descriptores ya generados (`haloscope_tidal_mn5_precomputed.slurm`) |
+| `pipelines/` | CIC + tensor de marea (`tidal_anisotropy_mn5_from_scratch.slurm`); Haloscope MN5 con descriptores ya generados (`haloscope_tidal_mn5_precomputed.slurm`); pipeline JSON MN5 + HMF preprocesado (`haloscope_pipeline_mn5_taurus.slurm`) |
 | `rockstar/` | Post-proceso Rockstar `find_parents` (columna PID / host halos) |
 | `compare_halo_hmf/` | HMF y calibración de masas multi-catálogo (local_sample / MN5 Taurus) |
 
@@ -32,6 +32,7 @@ sbatch slurm/sim_to_fastpm/main_sim_to_fastpm_haloscope_tidal.slurm
 sbatch slurm/rockstar/find_parents_fastpm_mn5_out8.slurm
 sbatch slurm/pipelines/tidal_anisotropy_mn5_from_scratch.slurm
 sbatch slurm/pipelines/haloscope_tidal_mn5_precomputed.slurm
+sbatch slurm/pipelines/haloscope_pipeline_mn5_taurus.slurm
 sbatch slurm/compare_halo_hmf/plot_hmf_four_catalogs_taurus.slurm
 sbatch slurm/compare_halo_hmf/compare_mass_calibration_four_catalogs_taurus.slurm
 ```

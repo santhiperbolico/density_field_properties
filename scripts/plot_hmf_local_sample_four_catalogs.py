@@ -25,16 +25,16 @@ Examples (repository root):
 
     # JSON job config (CLI flags override JSON values)
     PYTHONPATH=src python scripts/plot_hmf_local_sample_four_catalogs.py \\
-        --config config/hmf_four_catalogs_taurus.json
+        --config config/older/hmf_four_catalogs_taurus.json
 
     # Replot PNG from CSV only (faster tick spacing, no catalog I/O)
     PYTHONPATH=src python scripts/plot_hmf_local_sample_four_catalogs.py \\
-        --config config/hmf_four_catalogs_taurus.json \\
+        --config config/older/hmf_four_catalogs_taurus.json \\
         --from-csv output/hmf_four_catalogs_taurus/hmf_four_catalogs_taurus_full.csv
 
     # Zoom to Ramakrishnan et al. 2025 Ap. D mass range (2e11–3.2e14 Msun/h)
     PYTHONPATH=src python scripts/plot_hmf_local_sample_four_catalogs.py \\
-        --config config/hmf_four_catalogs_taurus.json \\
+        --config config/older/hmf_four_catalogs_taurus.json \\
         --from-csv output/hmf_four_catalogs_taurus/hmf_four_catalogs_taurus_full.csv \\
         --ramakrishnan-mass-range \\
         --output-stem hmf_four_catalogs_taurus_full_ramakrishnan

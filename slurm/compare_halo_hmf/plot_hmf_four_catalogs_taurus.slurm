@@ -22,6 +22,6 @@ mkdir -p output/hmf_four_catalogs_taurus
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Four-catalog HMF (taurus_full /data21)"
 
 srun python scripts/plot_hmf_local_sample_four_catalogs.py \
-    --config config/hmf_four_catalogs_taurus.json
+    --config config/older/hmf_four_catalogs_taurus.json
 
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Done. See output/hmf_four_catalogs_taurus/"

@@ -18,7 +18,7 @@ export PYTHONPATH=/home/arnes/santiago_arranz/density_field_properties/src
 source /home/arnes/miniconda3/etc/profile.d/conda.sh
 conda activate density_field_properties
 
-CONFIG="config/tidal_anisotropy_mn5.json"
+CONFIG="config/older/tidal_anisotropy_mn5.json"
 OUTPUT_PATH="output/tidal_mn5/haloscope"
 UNIT_WORK="output/tidal_mn5/unit"
 UNIT_HLIST_BZ2="/data21/UNITSIM/fixedAmp_InvPhase_001/ROCKSTAR/outputs/hlists/hlist_1.00000.list.bz2"

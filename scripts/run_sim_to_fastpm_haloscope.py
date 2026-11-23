@@ -5,12 +5,12 @@ Run SIM-to-FastPM Haloscope on a subset (smoke) or full catalogs.
 Example (from repository root, smoke ~few minutes):
 
     PYTHONPATH=src python scripts/run_sim_to_fastpm_haloscope.py \\
-        --config config/haloscope_run_env_smoke.json
+        --config config/older/haloscope_run_env_smoke.json
 
 Full run (heavy; cluster recommended):
 
     PYTHONPATH=src python scripts/run_sim_to_fastpm_haloscope.py \\
-        --config config/haloscope_run_env_production.json
+        --config config/older/haloscope_run_env_production.json
 """
 
 import argparse

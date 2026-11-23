@@ -25,6 +25,6 @@ mkdir -p "${OUTPUT_PATH}"
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Starting tidal Haloscope QUICK_RUN smoke (+ assembly bias)"
 
 srun python pipelines/run_haloscope_enrichment.py \
-    --config config/haloscope_run_tidal_smoke_assembly_bias.json
+    --config config/older/haloscope_run_tidal_smoke_assembly_bias.json
 
 echo "[INFO] [$(date '+%Y-%m-%d %H:%M:%S')] Finished tidal Haloscope smoke run"

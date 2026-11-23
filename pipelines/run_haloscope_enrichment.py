@@ -62,6 +62,7 @@ def main(argv: list[str]) -> int:
     args = _parse_args(argv)
     config_path = Path(args.config)
     config = load_haloscope_enrichment_config(config_path)
+    Path(config.output_dir).mkdir(parents=True, exist_ok=True)
 
     pipeline = config.pipeline
     logging.info(

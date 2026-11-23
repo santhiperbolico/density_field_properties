@@ -1,0 +1,92 @@
+{
+  "run_name": "pipeline_haloscope_mn5_taurus",
+  "general": {
+    "sim_hlist": "output/tidal_mn5/unit/hlist_1.00000.list",
+    "fastpm_list": "output/rockstar_find_parents/fastpm_mn5_tfm/out_8_with_pid.list",
+    "repo_root": ".",
+    "output_dir": "output/tidal_mn5/haloscope",
+    "input_features": ["overdensity", "tidal_anisotropy"],
+    "unit_descriptors_dir": "output/tidal_mn5/unit/tidal_anisotropy",
+    "fastpm_descriptors_dir": "output/tidal_mn5/fastpm/tidal_anisotropy"
+  },
+  "pipeline": {
+    "environment_features": {
+      "enabled": false,
+      "n_grid": 512,
+      "targets": [
+        {
+          "name": "unit",
+          "work_dir": "output/tidal_mn5/unit",
+          "catalog_layout": "hlist",
+          "descriptors_dir": "output/tidal_mn5/unit/tidal_anisotropy",
+          "dm_particles_file": "output/tidal_mn5/unit/dm_particles_0.5_128.dat"
+        },
+        {
+          "name": "fastpm",
+          "work_dir": "output/tidal_mn5/fastpm",
+          "catalog_layout": "rockstar_list",
+          "descriptors_dir": "output/tidal_mn5/fastpm/tidal_anisotropy",
+          "dm_particles_file": "/data21/users/mruiz/fastpm_MN5/fastpm_tfm/output_01/snap_1.0000/1",
+          "read_tensor_from_disk": true
+        }
+      ]
+    },
+    "preprocessing": {
+      "enabled": true,
+      "hr_parquet_name": "halos_sim_preprocessed.parquet",
+      "lr_parquet_name": "halos_fastpm_preprocessed.parquet",
+      "sample": {
+        "box_size_mpc_h": 1000,
+        "min_mass_msun_h": 3.219885e12,
+        "get_min_mass_lr_from_hmf": true,
+        "max_mass_msun_h": null,
+        "max_sim_halos": null,
+        "max_fastpm_halos": null
+      },
+      "mass_correction": {
+        "method": "matching_ml",
+        "correction_column": "M200b_cal",
+        "params_method": {
+          "matching": {
+            "k_neighbours": 10,
+            "r_match_mpc_h": 5.0,
+            "max_mass_distance": 0.95,
+            "max_matching_iterations": 5
+          },
+          "train_subbox": {
+            "x_min_mpc_h": 0.0,
+            "x_max_mpc_h": 500.0,
+            "y_min_mpc_h": 0.0,
+            "y_max_mpc_h": 1000.0,
+            "z_min_mpc_h": 0.0,
+            "z_max_mpc_h": 1000.0
+          },
+          "ml_features": ["log10_M200b", "delta", "log10_sigma_v"],
+          "regressor": {
+            "type": "xgboost",
+            "params": {
+              "n_estimators": 100,
+              "max_depth": 8,
+              "random_state": 42,
+              "n_jobs": 16,
+              "verbosity": 0
+            }
+          },
+          "keep_threshold": 0.5,
+          "model_path": "output/tidal_mn5/haloscope/models/matching_ml.joblib",
+          "write_model": true
+        }
+      }
+    },
+    "haloscope": {
+      "enabled": true,
+      "run_holdout_validation": true,
+      "min_bin_size": 9,
+      "enriched_parquet_name": "fastpm_out_8_haloscope_tidal_enriched.parquet"
+    },
+    "validation": {
+      "enabled": true,
+      "n_grid": 256
+    }
+  }
+}
