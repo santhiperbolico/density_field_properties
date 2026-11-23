@@ -50,7 +50,7 @@ def mock_halo_catalog(mock_halo_data):
 
     reader.read_catalog.return_value = mock_halo_data
 
-    def gen(path, batch_size, start_offset):
+    def gen(path, batch_size, start_offset, **_kwargs):
         yield mock_halo_data, 0, 3
         yield mock_halo_data, 3, 6
 
@@ -161,7 +161,7 @@ def test_tidal_anisotropy_missing_tensor_path(tmp_path, mock_halo_catalog):
 def integration_halo_catalog():
     reader = MagicMock()
 
-    def read_catalog(path, n_lines=None):
+    def read_catalog(path, n_lines=None, **_kwargs):
         data = np.array(
             [
                 [100, 2.0, 4.0, 6.0, 1e12, 1.0],

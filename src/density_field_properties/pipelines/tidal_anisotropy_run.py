@@ -20,6 +20,9 @@ from density_field_properties.environment_properties.tidal_anisotropy import (
 from density_field_properties.environment_properties.tidal_tensor.tensor import TidalTensorArray
 from density_field_properties.pipelines.catalog_columns import rockstar_catalog_column_kwargs
 from density_field_properties.read_data.halos.registry import get_halo_catalog_reader
+from density_field_properties.read_data.halos.rockstar import (
+    rockstar_catalog_supports_host_pid_filter,
+)
 
 TIDAL_ANISOTROPY_DIRNAME = "tidal_anisotropy"
 TIDAL_R_MIN_MPC_H = 1000 / 4096
@@ -236,6 +239,10 @@ def run_tidal_anisotropy_descriptors(
 
     halo_reader = get_halo_catalog_reader("rockstar")
     column_kwargs = rockstar_catalog_column_kwargs(catalog_layout)
+    filter_by_pid = rockstar_catalog_supports_host_pid_filter(
+        str(halo_catalog_path),
+        column_kwargs["halo_pid_position"],
+    )
     output_path = tidal_anisotropy_and_overdensity_from_halo_calaog(
         path=str(work_dir),
         halo_catalog=halo_reader,
@@ -245,6 +252,7 @@ def run_tidal_anisotropy_descriptors(
         n_lines=max_halos,
         batch_size=descriptor_batch_size,
         catalog_column_kwargs=column_kwargs,
+        filter_by_pid=filter_by_pid,
     )
     return Path(output_path)
 

@@ -319,6 +319,29 @@ def resolve_rockstar_pid_filter(
     )
 
 
+def rockstar_catalog_supports_host_pid_filter(path: str, halo_pid_position: int) -> bool:
+    """
+    Return whether a Rockstar catalog file supports host-only PID filtering.
+
+    Parameters
+    ----------
+    path : str
+        Path to a Rockstar ``.list`` or consistent-trees ``hlist`` file.
+    halo_pid_position : int
+        Zero-based parent-ID column index from the catalog layout map.
+
+    Returns
+    -------
+    bool
+        True when ``filter_by_pid=True`` is valid for this file; False for FoF-style lists.
+    """
+    try:
+        resolve_rockstar_pid_filter(path, halo_pid_position, filter_by_pid=True)
+    except ValueError:
+        return False
+    return True
+
+
 class RockstarCatalogReader(HaloCatalogReader):
     calog_name: str = "rockstar"
 

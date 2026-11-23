@@ -20,6 +20,7 @@ from density_field_properties.read_data.halos.fastpm import FastPMCatalogReader
 from density_field_properties.read_data.halos.rockstar import (
     RockstarCatalogReader,
     resolve_rockstar_pid_filter,
+    rockstar_catalog_supports_host_pid_filter,
 )
 
 
@@ -253,11 +254,7 @@ def rockstar_list_supports_host_pid_filter(
     if catalog_column_kwargs is None:
         catalog_column_kwargs = rockstar_catalog_column_kwargs(ROCKSTAR_LIST_CATALOG_LAYOUT)
     pid_index = catalog_column_kwargs["halo_pid_position"]
-    try:
-        resolve_rockstar_pid_filter(str(list_path), pid_index, filter_by_pid=True)
-    except ValueError:
-        return False
-    return True
+    return rockstar_catalog_supports_host_pid_filter(str(list_path), pid_index)
 
 
 def load_fastpm_rockstar_for_mass_calibration(
@@ -310,7 +307,10 @@ def load_fastpm_target_catalog(
     catalog_column_kwargs: Optional[dict[str, int]] = None,
 ) -> pd.DataFrame:
     """
-    Load FastPM Rockstar halos to enrich (positions and mass only).
+    Load FastPM Rockstar halos for Haloscope preprocessing.
+
+    Keeps host halos only (``PID == -1``) when the catalog exposes a PID column;
+    otherwise loads every row (FoF-style lists without PID).
 
     Parameters
     ----------
@@ -324,24 +324,13 @@ def load_fastpm_target_catalog(
     Returns
     -------
     pd.DataFrame
-        Positive-mass host halos with ``x``, ``y``, ``z``, ``M200b``.
+        Positive-mass host halos with ``x``, ``y``, ``z``, ``M200b``, and ``sigma_v``.
     """
-    if catalog_column_kwargs is None:
-        catalog_column_kwargs = rockstar_catalog_column_kwargs(ROCKSTAR_LIST_CATALOG_LAYOUT)
-    frame = rockstar_halo_catalog_to_dataframe(
+    return load_fastpm_rockstar_for_mass_calibration(
         list_path,
-        n_lines=max_halos,
+        max_halos=max_halos,
         catalog_column_kwargs=catalog_column_kwargs,
-        filter_by_pid=False,
     )
-    frame = _attach_rockstar_sigma_v_column(
-        frame,
-        list_path,
-        catalog_column_kwargs,
-        max_halos,
-        filter_by_pid=False,
-    )
-    return filter_positive_mass(frame)
 
 
 def load_fastpm_fof_target_catalog(

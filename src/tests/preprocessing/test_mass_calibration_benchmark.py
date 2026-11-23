@@ -15,7 +15,9 @@ from density_field_properties.preprocessing.catalog_loaders import (
     load_fastpm_target_catalog,
     rockstar_list_supports_host_pid_filter,
 )
-from density_field_properties.preprocessing.mass_calibration_ml import build_ml_feature_matrix
+from density_field_properties.preprocessing.mass_correction.ml_correction import (
+    build_ml_feature_matrix,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
@@ -144,16 +146,17 @@ def test_build_ml_feature_matrix_accepts_delta_from_overdensity():
 
 def test_load_fastpm_rockstar_for_mass_calibration_keeps_hosts_only():
     """
-    Mass-calibration Rockstar loader keeps ``PID == -1`` on local_sample lists.
+    Pipeline FastPM loaders keep ``PID == -1`` when the list exposes PID.
     """
     list_path = REPO_ROOT / "output/local_sample/fastpm/rockstar_out_pm/out_8.list"
     if not list_path.is_file():
         pytest.skip("local_sample Rockstar list not available.")
     assert rockstar_list_supports_host_pid_filter(list_path) is True
-    frame = load_fastpm_rockstar_for_mass_calibration(list_path, max_halos=200)
-    all_hosts = load_fastpm_target_catalog(list_path, max_halos=5000)
-    assert len(frame) < len(all_hosts)
-    assert "sigma_v" in frame.columns
+    hosts_cap = 200
+    frame_calibration = load_fastpm_rockstar_for_mass_calibration(list_path, max_halos=hosts_cap)
+    frame_target = load_fastpm_target_catalog(list_path, max_halos=hosts_cap)
+    assert len(frame_target) == len(frame_calibration)
+    assert "sigma_v" in frame_target.columns
 
 
 def test_load_fastpm_target_catalog_includes_sigma_v():
