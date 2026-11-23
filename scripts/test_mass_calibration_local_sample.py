@@ -2,7 +2,7 @@
 """
 Compare the three LR mass-calibration methods on local_sample catalogs.
 
-By default runs ``apply_mass_calibration`` on loaded HR/LR tables (no ``env``
+By default runs ``apply_mass_correction`` on loaded HR/LR tables (no ``env``
 KD-tree), which avoids periodic-box issues on non-recentered local_sample
 coordinates. Use ``--with-haloscope-features`` to run the full feature-table
 path (requires coordinates in ``[0, box_size)``).
@@ -46,18 +46,18 @@ from density_field_properties.preprocessing.catalog_loaders import (
     load_fastpm_rockstar_for_mass_calibration,
     load_unit_sim_training_catalog,
 )
-from density_field_properties.preprocessing.mass_calibration import apply_mass_calibration
-from density_field_properties.preprocessing.mass_calibration_config import (
-    MASS_CALIBRATION_METHOD_ABUNDANCE,
-    MASS_CALIBRATION_METHOD_MATCHING_1TO1,
-    MASS_CALIBRATION_METHOD_MATCHING_ML,
+from density_field_properties.preprocessing.mass_correction import apply_mass_correction
+from density_field_properties.preprocessing.mass_correction.config import (
+    MASS_CORRECTION_METHOD_ABUNDANCE,
+    MASS_CORRECTION_METHOD_MATCHING_1TO1,
+    MASS_CORRECTION_METHOD_MATCHING_ML,
 )
 
 DEFAULT_CONFIG = Path("config/haloscope_run_local_sample_mass_calibration.json")
 CALIBRATION_METHODS = (
-    MASS_CALIBRATION_METHOD_ABUNDANCE,
-    MASS_CALIBRATION_METHOD_MATCHING_1TO1,
-    MASS_CALIBRATION_METHOD_MATCHING_ML,
+    MASS_CORRECTION_METHOD_ABUNDANCE,
+    MASS_CORRECTION_METHOD_MATCHING_1TO1,
+    MASS_CORRECTION_METHOD_MATCHING_ML,
 )
 SUMMARY_FILENAME = "mass_calibration_methods_summary.json"
 HMF_OVERVIEW_FIGURE = "hmf_comparison_overview.png"
@@ -135,10 +135,10 @@ def _summarize_lr_table(lr_table: pd.DataFrame, mass_column: str, method: str) -
         summary["log10_mass_cal_mean"] = float(log_cal.mean())
         summary["log10_mass_cal_std"] = float(log_cal.std())
         summary["mean_log10_mass_offset_cal_minus_raw"] = float((log_cal - log_raw).mean())
-    if "mass_calib_matched" in lr_table.columns:
-        summary["n_matched_flag_true"] = int(lr_table["mass_calib_matched"].sum())
-    if "mass_calib_p_keep" in lr_table.columns:
-        p_keep = lr_table["mass_calib_p_keep"].to_numpy(dtype=float)
+    if "mass_corr_matched" in lr_table.columns:
+        summary["n_matched_flag_true"] = int(lr_table["mass_corr_matched"].sum())
+    if "mass_corr_p_keep" in lr_table.columns:
+        p_keep = lr_table["mass_corr_p_keep"].to_numpy(dtype=float)
         summary["p_keep_mean"] = float(np.nanmean(p_keep))
         summary["p_keep_median"] = float(np.nanmedian(p_keep))
     return summary
@@ -173,15 +173,15 @@ def _run_calibration_only(
     )
     method_config = replace(
         base_config,
-        mass_calibration=replace(base_config.mass_calibration, method=method),
+        mass_correction=replace(base_config.mass_correction, method=method),
     )
     lr_table = halos_fastpm.copy()
     hr_table = halos_sim
     box_size = resolve_fastpm_boxsize_mpc_h(method_config)
-    lr_table, mass_column = apply_mass_calibration(
+    lr_table, mass_column = apply_mass_correction(
         lr_table,
         hr_table,
-        method_config.mass_calibration,
+        method_config.mass_correction,
         box_size_mpc_h=box_size,
     )
     return hr_table, lr_table, mass_column
@@ -408,7 +408,7 @@ def main(argv: list[str]) -> int:
         if args.with_haloscope_features:
             method_config = replace(
                 base_config,
-                mass_calibration=replace(base_config.mass_calibration, method=method),
+                mass_correction=replace(base_config.mass_correction, method=method),
             )
             hr_table, lr_table, mass_column = build_haloscope_feature_tables(method_config)
         else:

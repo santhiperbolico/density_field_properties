@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Run SIM-to-FastPM Haloscope on a subset (smoke) or full catalogs.
 
@@ -20,8 +20,7 @@ import sys
 from pathlib import Path
 
 from density_field_properties.pipelines.config import (
-    DEFAULT_ENV_PRODUCTION_CONFIG,
-    DEFAULT_ENV_SMOKE_CONFIG,
+    DEFAULT_PIPELINE_CONFIG,
     load_haloscope_enrichment_config,
 )
 from density_field_properties.pipelines.haloscope_pipeline import run_haloscope_pipeline
@@ -45,11 +44,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=DEFAULT_ENV_SMOKE_CONFIG,
-        help=(
-            "JSON run configuration "
-            f"(default: {DEFAULT_ENV_SMOKE_CONFIG}; production: {DEFAULT_ENV_PRODUCTION_CONFIG})."
-        ),
+        default=DEFAULT_PIPELINE_CONFIG,
+        help=f"JSON run configuration (default: {DEFAULT_PIPELINE_CONFIG}).",
     )
     return parser.parse_args(argv)
 
@@ -87,8 +83,11 @@ def main(argv: list[str]) -> int:
         config.output_dir,
     )
 
-    out_path = run_haloscope_pipeline(config)
-    logging.info("Enriched catalog written to %s", out_path)
+    state = run_haloscope_pipeline(config)
+    if state.enrichment_result is not None:
+        logging.info("Enrichment output: %s", state.enrichment_result)
+    elif state.preprocess_paths is not None:
+        logging.info("Preprocess only: %s", state.preprocess_paths)
     return 0
 
 

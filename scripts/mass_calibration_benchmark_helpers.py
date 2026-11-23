@@ -29,16 +29,16 @@ from density_field_properties.preprocessing.context import build_preprocessing_c
 from density_field_properties.preprocessing.feature_table import _apply_attachers
 from density_field_properties.preprocessing.filters import filter_mass_range
 from density_field_properties.preprocessing.input_features.registry import resolve_attachers
-from density_field_properties.preprocessing.mass_calibration import apply_mass_calibration
-from density_field_properties.preprocessing.mass_calibration_config import (
+from density_field_properties.preprocessing.mass_correction import apply_mass_correction
+from density_field_properties.preprocessing.mass_correction.config import (
     DEFAULT_TRAIN_SUBBOX_X_MAX_MPC_H,
     DEFAULT_TRAIN_SUBBOX_Y_MAX_MPC_H,
     DEFAULT_TRAIN_SUBBOX_Z_MAX_MPC_H,
-    MASS_CALIBRATION_METHOD_ABUNDANCE,
-    MASS_CALIBRATION_METHOD_MATCHING_ML,
+    MASS_CORRECTION_METHOD_ABUNDANCE,
+    MASS_CORRECTION_METHOD_MATCHING_ML,
     TrainSubboxConfig,
 )
-from density_field_properties.preprocessing.mass_calibration_ml import mask_subbox
+from density_field_properties.preprocessing.mass_correction.ml_correction import mask_subbox
 
 FORERO_ML_FEATURE_NAMES = ("log10_M200b", "delta", "log10_sigma_v")
 
@@ -47,8 +47,8 @@ LOADER_FASTPM_FOF = "fastpm_fof"
 SUPPORTED_LR_LOADERS = (LOADER_ROCKSTAR_LIST, LOADER_FASTPM_FOF)
 
 DEFAULT_BENCHMARK_METHODS = (
-    MASS_CALIBRATION_METHOD_ABUNDANCE,
-    MASS_CALIBRATION_METHOD_MATCHING_ML,
+    MASS_CORRECTION_METHOD_ABUNDANCE,
+    MASS_CORRECTION_METHOD_MATCHING_ML,
 )
 
 UNIT_HMF_LABEL = "UNIT_sim"
@@ -252,7 +252,7 @@ def resolve_catalog_train_subbox(
     """
     if entry.train_subbox is not None:
         return entry.train_subbox
-    return base_config.mass_calibration.matching_ml.train_subbox
+    return base_config.mass_correction.matching_ml.train_subbox
 
 
 def resolve_catalog_methods(
@@ -433,7 +433,7 @@ def attach_matching_ml_input_features(
     tuple[pd.DataFrame, pd.DataFrame]
         Tables with extra columns for ML feature construction.
     """
-    ml_features = base_config.mass_calibration.matching_ml.ml_features
+    ml_features = base_config.mass_correction.matching_ml.ml_features
     input_features = input_features_for_matching_ml(ml_features)
     if not input_features:
         return hr_table, lr_table
@@ -442,7 +442,7 @@ def attach_matching_ml_input_features(
         raise ValueError("box_size_mpc_h is required to attach ML input features.")
     context = build_preprocessing_context(
         repo_root=Path(base_config.repo_root),
-        mass_calibration=base_config.mass_calibration,
+        mass_correction=base_config.mass_correction,
         sim_boxsize_mpc_h=box_size,
         fastpm_boxsize_mpc_h=box_size,
         env_radius_mpc_h=ENV_RADIUS_MPC_H,
@@ -596,13 +596,13 @@ def run_mass_calibration_method(
     """
     method_config = replace(
         base_config,
-        mass_calibration=replace(base_config.mass_calibration, method=method),
+        mass_correction=replace(base_config.mass_correction, method=method),
     )
     lr_copy = lr_table.copy()
-    return apply_mass_calibration(
+    return apply_mass_correction(
         lr_copy,
         hr_table,
-        method_config.mass_calibration,
+        method_config.mass_correction,
         box_size_mpc_h=box_size_mpc_h,
     )
 
@@ -760,10 +760,10 @@ def summarize_lr_calibration(
         summary["log10_mass_cal_mean"] = float(log_cal.mean())
         summary["log10_mass_cal_std"] = float(log_cal.std())
         summary["mean_log10_mass_offset_cal_minus_raw"] = float((log_cal - log_raw).mean())
-    if "mass_calib_matched" in lr_table.columns:
-        summary["n_matched_flag_true"] = int(lr_table["mass_calib_matched"].sum())
-    if "mass_calib_p_keep" in lr_table.columns:
-        p_keep = lr_table["mass_calib_p_keep"].to_numpy(dtype=float)
+    if "mass_corr_matched" in lr_table.columns:
+        summary["n_matched_flag_true"] = int(lr_table["mass_corr_matched"].sum())
+    if "mass_corr_p_keep" in lr_table.columns:
+        p_keep = lr_table["mass_corr_p_keep"].to_numpy(dtype=float)
         summary["p_keep_mean"] = float(np.nanmean(p_keep))
         summary["p_keep_median"] = float(np.nanmedian(p_keep))
     return summary
@@ -895,6 +895,90 @@ def build_hmf_comparison_curves(
         f"hmf_rmse_log_nv_{method}_vs_unit": rmse_log_density_vs_reference(unit_log_n, cal_log_n),
     }
     return curves, metrics
+
+
+def is_pipeline_preprocessed_config(payload: Mapping[str, Any]) -> bool:
+    """
+    Return whether a JSON object is a pipeline config with preprocess Parquet outputs.
+
+    Parameters
+    ----------
+    payload : Mapping[str, Any]
+        Parsed run JSON.
+
+    Returns
+    -------
+    bool
+        True when ``pipeline.preprocessing`` defines HR/LR Parquet names.
+    """
+    pipeline = payload.get("pipeline")
+    if not isinstance(pipeline, dict):
+        return False
+    prep = pipeline.get("preprocessing")
+    if not isinstance(prep, dict):
+        return False
+    return bool(prep.get("hr_parquet_name") and prep.get("lr_parquet_name"))
+
+
+def load_pipeline_preprocessed_parquets(
+    config: HaloscopeEnrichmentConfig,
+) -> tuple[pd.DataFrame, pd.DataFrame, str, str]:
+    """
+    Load preprocessed HR/LR tables written by the Haloscope preprocessing stage.
+
+    Parameters
+    ----------
+    config : HaloscopeEnrichmentConfig
+        Pipeline run configuration with ``general.output_dir`` and preprocess names.
+
+    Returns
+    -------
+    tuple[pd.DataFrame, pd.DataFrame, str, str]
+        HR table, LR table, LR correction column name, and correction method key.
+
+    Raises
+    ------
+    FileNotFoundError
+        If either Parquet file is missing under ``output_dir``.
+    """
+    prep = config.pipeline.preprocessing
+    out_dir = Path(config.output_dir)
+    hr_path = out_dir / prep.hr_parquet_name
+    lr_path = out_dir / prep.lr_parquet_name
+    if not hr_path.is_file():
+        raise FileNotFoundError(f"HR preprocess Parquet not found: {hr_path}")
+    if not lr_path.is_file():
+        raise FileNotFoundError(f"LR preprocess Parquet not found: {lr_path}")
+    mass_block = prep.mass_correction
+    return (
+        pd.read_parquet(hr_path),
+        pd.read_parquet(lr_path),
+        mass_block.correction_column,
+        mass_block.method,
+    )
+
+
+def benchmark_hmf_from_pipeline_sample(
+    config: HaloscopeEnrichmentConfig,
+) -> BenchmarkHmfConfig:
+    """
+    Build HMF plot limits from ``pipeline.preprocessing.sample`` mass bounds.
+
+    Parameters
+    ----------
+    config : HaloscopeEnrichmentConfig
+        Loaded pipeline configuration.
+
+    Returns
+    -------
+    BenchmarkHmfConfig
+        Mass range for HMF binning and metrics.
+    """
+    sample = config.pipeline.preprocessing.sample
+    return BenchmarkHmfConfig(
+        min_mass_msun_h=sample.min_mass_msun_h,
+        max_mass_msun_h=sample.max_mass_msun_h,
+    )
 
 
 def load_benchmark_hr_lr_tables(
